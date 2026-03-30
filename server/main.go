@@ -718,7 +718,10 @@ func main() {
 			return
 		}
 		
-		path := filepath.Join(distDir, r.URL.Path)
+		// r.URL.Path always starts with "/" - if we pass it directly to filepath.Join,
+		// it will treat it as an absolute path and discard distDir, causing assets to fail.
+		relativePath := strings.TrimPrefix(r.URL.Path, "/")
+		path := filepath.Join(distDir, relativePath)
 		_, err := os.Stat(path)
 		if os.IsNotExist(err) {
 			// 如果文件不存在（如 /analysis），返回 index.html 实现 SPA 路由
