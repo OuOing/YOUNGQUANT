@@ -43,6 +43,7 @@ const Header = ({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
 
   useEffect(() => {
     setSearchTerm(currentSym);
@@ -69,9 +70,11 @@ const Header = ({
         const data = await res.json();
         setSuggestions(Array.isArray(data) ? data : []);
         setSuggestionsOpen(true);
+        setActiveSuggestionIndex(0);
       } catch {
         setSuggestions([]);
         setSuggestionsOpen(false);
+        setActiveSuggestionIndex(0);
       } finally {
         setSuggestionsLoading(false);
       }
@@ -104,10 +107,43 @@ const Header = ({
                 setSuggestionsOpen(false);
               }}
               onKeyDown={(e) => {
-                if (e.key !== 'Enter') return;
-                const sym = suggestions?.[0]?.symbol || searchTerm;
-                setSuggestionsOpen(false);
-                onSelectStock(sym);
+                if (!suggestionsOpen) {
+                  if (e.key === 'Enter') {
+                    const sym =
+                      suggestions?.find(s => s.symbol === searchTerm)?.symbol ||
+                      suggestions?.[0]?.symbol ||
+                      searchTerm;
+                    setSuggestionsOpen(false);
+                    onSelectStock(sym);
+                  }
+                  return;
+                }
+
+                if (e.key === 'Escape') {
+                  setSuggestionsOpen(false);
+                  return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setActiveSuggestionIndex(i => Math.min(i + 1, Math.max(0, (suggestions?.length || 1) - 1)));
+                  return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setActiveSuggestionIndex(i => Math.max(i - 1, 0));
+                  return;
+                }
+
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const pick = suggestions?.[activeSuggestionIndex] || suggestions?.[0];
+                  const sym = pick?.symbol || searchTerm;
+                  setSuggestionsOpen(false);
+                  setSearchTerm(sym);
+                  onSelectStock(sym);
+                }
               }}
               className="w-32 h-10 bg-black/40 border border-white/5 rounded-2xl px-5 text-sm font-bold text-white outline-none focus:border-secondary/30 focus:bg-black/60 transition-all text-center placeholder:text-white/10"
               placeholder="601899"
@@ -142,6 +178,7 @@ const Header = ({
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setSuggestionsOpen(false);
+                            setSearchTerm(s.symbol);
                             onSelectStock(s.symbol);
                           }}
                           className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all text-left"
@@ -162,7 +199,15 @@ const Header = ({
             )}
           </div>
           <button 
-            onClick={() => onSelectStock(searchTerm)}
+            onClick={() => {
+              const sym =
+                suggestions?.find(s => s.symbol === searchTerm)?.symbol ||
+                suggestions?.[0]?.symbol ||
+                searchTerm;
+              setSuggestionsOpen(false);
+              setSearchTerm(sym);
+              onSelectStock(sym);
+            }}
             className="btn-pro btn-pro-teal h-10 px-6"
           >
             切换
