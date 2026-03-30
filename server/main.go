@@ -120,6 +120,11 @@ func handlePortfolio(w http.ResponseWriter, r *http.Request) {
 	portfolioMutex.Lock()
 	defer portfolioMutex.Unlock()
 
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "15"
+	}
+
 	p, _ := loadPortfolio()
 	totalAssets := p.Cash
 	
@@ -130,23 +135,40 @@ func handlePortfolio(w http.ResponseWriter, r *http.Request) {
 	details := make(map[string]interface{})
 
 	for symbol, hold := range p.Holdings {
-		// 1. 获取当前最新价 (分时数据最后一行)
-		csvData, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s_15m.csv", symbol)))
-		lines := strings.Split(strings.TrimSpace(string(csvData)), "\n")
-		
+		// 1. 获取当前最新价（与 UI 所选 period 对齐）
 		lastPrice := 0.0
-		price1h := 0.0
-		if len(lines) > 1 {
-			// 15m CSV: 日期,开盘,收盘,最高,最低,...  → close = index[2]
-			parts := strings.Split(lines[len(lines)-1], ",")
-			if len(parts) > 2 {
-				lastPrice, _ = strconv.ParseFloat(parts[2], 64)
+		if period == "daily" {
+			csvDailyLatest, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s.csv", symbol)))
+			linesDailyLatest := strings.Split(strings.TrimSpace(string(csvDailyLatest)), "\n")
+			if len(linesDailyLatest) > 1 {
+				parts := strings.Split(linesDailyLatest[len(linesDailyLatest)-1], ",")
+				// Daily CSV: 日期,股票代码,开盘,收盘,最高,最低,...  → close = index[3]
+				if len(parts) > 3 {
+					lastPrice, _ = strconv.ParseFloat(parts[3], 64)
+				}
 			}
-			
-			// 1h 前 = 4 个 15m bar
-			idx1h := len(lines) - 5
-			if idx1h < 1 { idx1h = 1 }
-			parts1h := strings.Split(lines[idx1h], ",")
+		} else {
+			// Minute CSV: 日期,开盘,收盘,最高,最低,...  → close = index[2]
+			csvData, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s_%sm.csv", symbol, period)))
+			lines := strings.Split(strings.TrimSpace(string(csvData)), "\n")
+			if len(lines) > 1 {
+				parts := strings.Split(lines[len(lines)-1], ",")
+				if len(parts) > 2 {
+					lastPrice, _ = strconv.ParseFloat(parts[2], 64)
+				}
+			}
+		}
+
+		// 1h 前价格仍基于 15m 数据（1h = 4 个 15m bar）
+		price1h := 0.0
+		csv15m, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s_15m.csv", symbol)))
+		lines15m := strings.Split(strings.TrimSpace(string(csv15m)), "\n")
+		if len(lines15m) > 1 {
+			idx1h := len(lines15m) - 5
+			if idx1h < 1 {
+				idx1h = 1
+			}
+			parts1h := strings.Split(lines15m[idx1h], ",")
 			if len(parts1h) > 2 {
 				price1h, _ = strconv.ParseFloat(parts1h[2], 64)
 			}
@@ -222,9 +244,9 @@ func handleTrade(w http.ResponseWriter, r *http.Request) {
 
 	p, _ := loadPortfolio()
 	
-	// 获取当前模拟日期 (从分时数据最后一行获取)
+	// 获取当前模拟日期（从日线读取，保证 T+1 逻辑一致）
 	currentDate := ""
-	csvData, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s_15m.csv", req.Symbol)))
+	csvData, _ := os.ReadFile(filepath.Join(projectDir, fmt.Sprintf("stock_%s.csv", req.Symbol)))
 	lines := strings.Split(strings.TrimSpace(string(csvData)), "\n")
 	if len(lines) > 1 {
 		parts := strings.Split(lines[len(lines)-1], ",")
@@ -599,7 +621,7 @@ func main() {
 	http.HandleFunc("/api/portfolio", handlePortfolio)
 	http.HandleFunc("/api/trade", handleTrade)
 	http.HandleFunc("/api/stocks", handleStocks)
-	// http.HandleFunc("/api/ai-advisor", handleAIAdvisor) // 已在 SPA 中由 /analysis 替代
+	http.HandleFunc("/api/ai-advisor", handleAIAdvisor)
 	http.HandleFunc("/api/ai-chat", handleAIChat)
 	http.HandleFunc("/api/news", handleNews)
 

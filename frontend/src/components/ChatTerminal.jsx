@@ -42,16 +42,23 @@ const ChatTerminal = ({ symbol, price, period, stockName }) => {
     setIsTyping(true);
 
     try {
+      const historyPayload = JSON.stringify(
+        messages
+          .slice(-6)
+          // 后端 ai/chat.py 期望的字段是 { role, content }
+          .map(m => ({ role: m.role, content: m.text }))
+      );
       const res = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          history: JSON.stringify(messages.slice(-6)),
+          history: historyPayload,
           context: `证券：${stockName || symbol} 现价：${price} 周期：${period}`
         })
       });
       const data = await res.json();
+      if (data?.error) throw new Error(data.error);
       setIsTyping(false);
       
       const aiMsgId = Date.now();
@@ -59,7 +66,7 @@ const ChatTerminal = ({ symbol, price, period, stockName }) => {
       
       // Typing effect
       let i = 0;
-      const text = data.response;
+      const text = data.response || '';
       const timer = setInterval(() => {
         setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: text.substring(0, i + 1) } : m));
         i++;

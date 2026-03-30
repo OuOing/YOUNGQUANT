@@ -8,8 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# Keep built UI assets so the Go server can serve frontend/dist directly.
+# (node_modules is still ignored)
+# dist
+# dist-ssr
 *.local
 
 # Editor directories and files

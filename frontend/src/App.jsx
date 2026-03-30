@@ -28,7 +28,17 @@ const AILogo = () => (
   </div>
 );
 
-const Header = ({ currentSym, onSelectStock, user, onOpenAuth, onOpenTutorial, onLogout }) => {
+const Header = ({
+  currentSym,
+  period,
+  refreshing,
+  onRefreshPipeline,
+  onSelectStock,
+  user,
+  onOpenAuth,
+  onOpenTutorial,
+  onLogout
+}) => {
   const [searchTerm, setSearchTerm] = useState(currentSym);
 
   return (
@@ -62,9 +72,16 @@ const Header = ({ currentSym, onSelectStock, user, onOpenAuth, onOpenTutorial, o
           </button>
         </div>
 
-        <button className="btn-pro btn-pro-glass h-10 px-8 text-white/80 group">
-          <RefreshCw size={14} className="text-white/30 group-hover:text-secondary group-hover:rotate-180 transition-all duration-500" />
-          重训流水线
+        <button
+          onClick={onRefreshPipeline}
+          disabled={refreshing}
+          className={`btn-pro btn-pro-glass h-10 px-8 text-white/80 group ${refreshing ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          <RefreshCw
+            size={14}
+            className={`text-white/30 group-hover:text-secondary transition-all duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
+          />
+          {refreshing ? '训练中...' : '重训流水线'}
         </button>
 
         <div className="h-4 w-[1px] bg-white/10 mx-2"></div>
@@ -99,7 +116,7 @@ const Header = ({ currentSym, onSelectStock, user, onOpenAuth, onOpenTutorial, o
   );
 };
 
-const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortfolio }) => {
+const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortfolio, onPeriodChange }) => {
   const [price, setPrice] = useState(0);
 
   useEffect(() => {
@@ -116,6 +133,34 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
   }, [currentSym, period]);
 
   const [showDeepAnalysis, setShowDeepAnalysis] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiReport, setAiReport] = useState(null);
+
+  useEffect(() => {
+    if (!showDeepAnalysis) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setAiLoading(true);
+      setAiError('');
+      setAiReport(null);
+      try {
+        const res = await fetch(`/api/ai-advisor?symbol=${currentSym}&period=${period}`);
+        const data = await res.json();
+        if (!cancelled) setAiReport(data);
+      } catch (e) {
+        if (!cancelled) setAiError(e?.message || '未知错误');
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeepAnalysis, currentSym, period]);
 
   return (
     <div className="p-8 min-h-[calc(100vh-80px)] flex flex-col gap-8 animate-fade-in bg-bg-deep font-sans">
@@ -134,10 +179,15 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
                     <span className="text-[10px] font-black text-up uppercase tracking-widest">LIVE DATA FEED</span>
                   </div>
                   <div className="flex gap-3">
-                    {['15m', '60m', '1D'].map((p, idx) => (
+                    {['15m', '60m', '1D'].map((p) => (
                       <button 
                         key={p} 
-                        className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${idx === 0 ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'}`}
+                        onClick={() => onPeriodChange(p === '1D' ? 'daily' : p.replace('m', ''))}
+                        className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          (p === '1D' ? 'daily' : p.replace('m', '')) === period
+                            ? 'bg-white text-black shadow-lg shadow-white/10'
+                            : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white'
+                        }`}
                       >
                         {p}
                       </button>
@@ -231,7 +281,59 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
           <div className="section-card w-full max-w-xl relative z-10 p-16 text-center">
             <div className="ai-tag mb-8 mx-auto w-fit bg-[#00f2ea] text-black">DEEP ANALYSIS</div>
             <h2 className="text-4xl font-black text-white mb-6 uppercase tracking-tighter">智能归因深度研报</h2>
-            <p className="text-text-dim text-lg mb-12 font-medium">正在生成「{stocks[currentSym]}」的深度量化分析报告... 请稍后查看。</p>
+            {aiLoading && (
+              <p className="text-text-dim text-lg mb-12 font-medium">
+                正在生成「{stocks[currentSym]}」的深度量化分析报告... 请稍后查看。
+              </p>
+            )}
+
+            {!aiLoading && aiError && (
+              <p className="text-down text-lg mb-12 font-medium">
+                AI 分析失败：{aiError}
+              </p>
+            )}
+
+            {!aiLoading && aiReport && (
+              <div className="flex flex-col gap-4 text-left">
+                {(() => {
+                  const signal = aiReport.signal || 'HOLD';
+                  const confPct = Math.round((aiReport.confidence || 0) * 100);
+                  const chipClass =
+                    signal === 'BUY' ? 'text-up border-up/40 bg-up/10' :
+                    signal === 'SELL' ? 'text-down border-down/40 bg-down/10' :
+                    'text-secondary border-white/10 bg-white/5';
+                  const headline =
+                    signal === 'BUY' ? 'AI 建议：关注买入机会' :
+                    signal === 'SELL' ? 'AI 建议：关注卖出/回避风险' :
+                    'AI 建议：保持观望（HOLD）';
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-4 mb-2">
+                        <span className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border ${chipClass}`}>
+                          {signal}
+                        </span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-text-main text-xs font-black uppercase tracking-widest">
+                          {confPct}% 置信度
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-black text-white">{headline}</h3>
+                      <div className="text-text-dim text-sm leading-relaxed">
+                        <div className="mt-2">
+                          <b className="text-text-main">原因：</b>{aiReport.reason}
+                        </div>
+                        <div className="mt-2">
+                          <b className="text-text-main">主要风险：</b>{aiReport.risk}
+                        </div>
+                        <div className="mt-2">
+                          <b className="text-text-main">专家建议：</b>{aiReport.expert_tip}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
             <button 
               onClick={() => setShowDeepAnalysis(false)}
               className="section-action-btn w-full py-6 text-xl"
@@ -245,8 +347,53 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
   );
 };
 
-const DeepAnalysis = ({ currentSym }) => {
+const DeepAnalysis = ({ currentSym, period }) => {
   const [activeTab, setActiveTab] = useState('sentiment');
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [report, setReport] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setErr('');
+      setReport(null);
+      try {
+        const res = await fetch(`/api/ai-advisor?symbol=${currentSym}&period=${period}`);
+        const data = await res.json();
+        if (!cancelled) {
+          if (data?.error) {
+            setErr(data.error);
+          } else {
+            setReport(data);
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || '未知错误');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSym, period]);
+
+  const signal = report?.signal || 'HOLD';
+  const conf = typeof report?.confidence === 'number' ? report.confidence : 0.82;
+  const confPct = Math.round(conf * 100);
+  const textBySignal =
+    signal === 'BUY' ? 'text-up' :
+    signal === 'SELL' ? 'text-down' :
+    'text-secondary';
+  const factorWidths = [
+    confPct,
+    Math.min(100, confPct + 9),
+    Math.max(0, confPct - 17),
+    Math.min(100, confPct + 3)
+  ];
   
   return (
     <div className="p-10 h-[calc(100vh-80px)] flex flex-col gap-10 animate-fade-in overflow-y-auto">
@@ -281,22 +428,48 @@ const DeepAnalysis = ({ currentSym }) => {
       </div>
 
       <div className="flex-1 min-h-0">
-        {activeTab === 'sentiment' && (
+        {loading && (
+          <div className="py-20 text-center text-white/20 font-black italic tracking-widest">
+            正在生成 AI 深度研报...
+          </div>
+        )}
+
+        {!loading && err && (
+          <div className="py-20 text-center text-down/80 font-black italic tracking-widest">
+            {err}
+          </div>
+        )}
+
+        {!loading && activeTab === 'sentiment' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
              <div className="card p-8 flex flex-col items-center justify-center gap-6 shadow-xl">
                 <div className="relative w-48 h-48">
                   <svg className="w-full h-full transform -rotate-90">
                     <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-white/5"/>
-                    <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={552} strokeDashoffset={552 * (1 - 0.82)} className="text-up transition-all duration-1000 ease-out"/>
+                    <circle
+                      cx="96"
+                      cy="96"
+                      r="88"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      fill="transparent"
+                      strokeDasharray={552}
+                      strokeDashoffset={552 * (1 - conf)}
+                      className={`${textBySignal} transition-all duration-1000 ease-out`}
+                    />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-black font-brand text-up">82</span>
+                    <span className={`text-5xl font-black font-brand ${textBySignal}`}>{confPct}</span>
                     <span className="text-[0.6rem] font-bold text-text-dim uppercase tracking-widest mt-1 italic">PRO OPTIMISM</span>
                   </div>
                 </div>
                 <div className="text-center">
-                   <h4 className="text-xl font-black text-up">市场人气处于“极度乐观”区间</h4>
-                   <p className="text-sm text-text-muted mt-2 max-w-sm font-medium">综合研报共识与主力资金动向，AI 信号建议持有并关注超买回落。</p>
+                   <h4 className={`text-xl font-black ${textBySignal}`}>
+                    {signal === 'BUY' ? '市场偏强：关注买入机会' : signal === 'SELL' ? '市场偏弱：回避/减仓风险' : '市场观望：等待更清晰信号'}
+                   </h4>
+                   <p className="text-sm text-text-muted mt-2 max-w-sm font-medium">
+                    {report?.reason || '数据加载中...'}
+                   </p>
                 </div>
              </div>
              <div className="flex flex-col gap-6">
@@ -304,7 +477,7 @@ const DeepAnalysis = ({ currentSym }) => {
                    <h5 className="text-[0.6rem] font-black uppercase text-text-dim border-b border-white/5 pb-2 tracking-widest">核心决策情绪因子表</h5>
                    <div className="space-y-4">
                       {['主力大单买入', '分析师买入评级', '散户心理共鸣', '融资杠杆活跃度'].map((label, i) => {
-                        const width = [82, 91, 65, 74][i]; 
+                        const width = factorWidths[i];
                         return (
                           <div key={i} className="flex justify-between items-center">
                              <span className="text-sm font-bold text-text-main">{label}</span>
@@ -326,12 +499,63 @@ const DeepAnalysis = ({ currentSym }) => {
                       </div>
                       <div>
                          <h5 className="text-sm font-black text-text-main">AI 增强深度洞察</h5>
-                         <p className="text-xs text-text-dim">LSTM 3日预测上涨概率：68.2% (高可信)</p>
+                         <p className="text-xs text-text-dim">置信度：{confPct}%（{signal}）</p>
                       </div>
                    </div>
                    <button className="bg-secondary text-white px-6 py-2 rounded-xl text-xs font-black shadow-lg shadow-secondary/20 hover:brightness-110 active:scale-95 transition-all">查阅预测矩阵</button>
                 </div>
              </div>
+          </div>
+        )}
+
+        {!loading && activeTab === 'technical' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+            <div className="card p-8 shadow-xl">
+              <h4 className={`text-xl font-black ${textBySignal}`}>技术指标评分解读</h4>
+              <p className="text-sm text-text-dim mt-4 leading-relaxed">
+                <b className="text-text-main">原因：</b>
+                {report?.reason || '数据加载中...'}
+              </p>
+              <p className="text-sm text-down/90 mt-3 leading-relaxed">
+                <b className="text-text-main">主要风险：</b>
+                {report?.risk || '—'}
+              </p>
+            </div>
+            <div className="glass rounded-2xl p-8 border-secondary/20 bg-secondary/5 flex flex-col gap-4">
+              <h5 className="text-sm font-black text-text-main">量化策略提示</h5>
+              <p className="text-sm text-text-dim leading-relaxed">
+                {report?.expert_tip || '—'}
+              </p>
+              <div className="h-[1px] bg-white/5" />
+              <p className="text-xs text-text-dim">
+                当前信号：<b className="text-text-main">{signal}</b>，置信度 <b className="text-text-main">{confPct}%</b>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!loading && activeTab === 'predictor' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+            <div className="card p-8 shadow-xl">
+              <h4 className={`text-xl font-black ${textBySignal}`}>AI 预测空间</h4>
+              <div className="mt-6 flex items-baseline gap-4">
+                <span className={`text-5xl font-black font-brand ${textBySignal}`}>{confPct}</span>
+                <span className="text-text-dim font-black">%</span>
+                <span className="text-text-muted text-sm font-black">上涨/空间置信度</span>
+              </div>
+              <p className="text-sm text-text-dim mt-4 leading-relaxed">
+                {report?.reason || '—'}
+              </p>
+            </div>
+            <div className="glass rounded-2xl p-8 border-secondary/20 bg-secondary/5 flex flex-col gap-4">
+              <h5 className="text-sm font-black text-text-main">专家建议</h5>
+              <p className="text-sm text-text-dim leading-relaxed">{report?.expert_tip || '—'}</p>
+              <div className="h-[1px] bg-white/5" />
+              <p className="text-sm text-down/90 leading-relaxed">
+                <b className="text-text-main">风险对冲：</b>
+                {report?.risk || '—'}
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -342,9 +566,10 @@ const DeepAnalysis = ({ currentSym }) => {
 function App() {
   const [currentSym, setCurrentSym] = useState('601899');
   const [portfolio, setPortfolio] = useState({ holdings: {}, history: [], cash: 0, total_assets: 0 });
-  const [period] = useState('15');
+  const [period, setPeriod] = useState('15');
   const [logs, setLogs] = useState([]);
   const [user, setUser] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Modals state
   const [showAuth, setShowAuth] = useState(false);
@@ -352,11 +577,11 @@ function App() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch('/api/portfolio?_=' + Date.now());
+      const res = await fetch(`/api/portfolio?period=${period}&_=` + Date.now());
       const data = await res.json();
       if (data) setPortfolio(data);
     } catch { /* silent fail */ }
-  }, []);
+  }, [period]);
 
   useEffect(() => {
     // Wrap to avoid ESLint warning on direct call
@@ -366,7 +591,38 @@ function App() {
     return () => clearInterval(timer);
   }, [fetchPortfolio]);
 
-  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 50));
+  const addLog = useCallback((msg) => setLogs(prev => [msg, ...prev].slice(0, 50)), []);
+
+  const onRefreshPipeline = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+
+    try {
+      const prettyPeriod = period === 'daily' ? '1D' : `${period}m`;
+      addLog(`[系统] 开始重训流水线：${currentSym} / ${prettyPeriod}`);
+
+      const res = await fetch(`/api/refresh?symbol=${currentSym}&period=${period}`);
+      const data = await res.json();
+
+      if (data?.status === 'cooldown') {
+        addLog(`[系统] ${data.msg}`);
+        return;
+      }
+
+      if (data?.steps?.length) {
+        data.steps.forEach(s => addLog(`[刷新] ${s}`));
+      }
+
+      if (data?.duration) {
+        addLog(`[系统] 重训结束，耗时 ${data.duration}`);
+      }
+    } catch {
+      addLog('[系统] 重训失败，请稍后再试。');
+    } finally {
+      setRefreshing(false);
+      await fetchPortfolio();
+    }
+  }, [refreshing, period, currentSym, addLog, fetchPortfolio]);
 
   const isModalOpen = showAuth || showTutorial;
 
@@ -375,6 +631,9 @@ function App() {
       <div className={`min-h-screen flex flex-col transition-all duration-300 ${isModalOpen ? 'grayscale-[0.4] blur-[8px] pointer-events-none' : ''}`}>
         <Header 
           currentSym={currentSym} 
+          period={period}
+          refreshing={refreshing}
+          onRefreshPipeline={onRefreshPipeline}
           onSelectStock={setCurrentSym} 
           user={user}
           onOpenAuth={() => setShowAuth(true)}
@@ -391,9 +650,10 @@ function App() {
                 logs={logs}
                 onAddLog={addLog}
                 refreshPortfolio={fetchPortfolio}
+                onPeriodChange={setPeriod}
               />
             } />
-            <Route path="/analysis" element={<DeepAnalysis currentSym={currentSym} />} />
+            <Route path="/analysis" element={<DeepAnalysis currentSym={currentSym} period={period} />} />
           </Routes>
         </main>
       </div>
