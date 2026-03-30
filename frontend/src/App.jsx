@@ -42,6 +42,7 @@ const Header = ({
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     setSearchTerm(currentSym);
@@ -51,6 +52,12 @@ const Header = ({
     const term = (searchTerm || '').trim();
     if (!term) {
       setSuggestions([]);
+      setSuggestionsOpen(false);
+      return;
+    }
+
+    // 仅在输入框聚焦时展示下拉，避免首屏遮挡其它 UI
+    if (!searchFocused) {
       setSuggestionsOpen(false);
       return;
     }
@@ -71,7 +78,7 @@ const Header = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, period]);
+  }, [searchTerm, period, searchFocused]);
 
   return (
     <header className="px-12 bg-bg-deep/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center z-[100] sticky top-0 h-20">
@@ -91,6 +98,11 @@ const Header = ({
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => {
+                setSearchFocused(false);
+                setSuggestionsOpen(false);
+              }}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
                 const sym = suggestions?.[0]?.symbol || searchTerm;
@@ -127,6 +139,7 @@ const Header = ({
                       return (
                         <button
                           key={s.symbol}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setSuggestionsOpen(false);
                             onSelectStock(s.symbol);
