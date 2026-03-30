@@ -1,0 +1,31 @@
+# [air](https://github.com/air-verse/air) TOML 配置文件
+
+# 根目录
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # 每次启动时编译的命令
+  cmd = "go build -o ./tmp/main ./server/main.go"
+  # 编译后的二进制执行文件
+  bin = "tmp/main"
+  # 监控的文件后台
+  include_ext = ["go", "html", "css", "js", "py"]
+  # 忽略这些目录
+  exclude_dir = ["data", "tmp", "vendor", "node_modules"]
+  # 监控间隔
+  delay = 1000 # ms
+  # 发生编译错误时停止运行旧的二进制
+  stop_on_error = true
+  # 日志颜色颜色
+  log = "air.log"
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # 退出时是否清理 tmp 目录
+  clean_on_exit = true

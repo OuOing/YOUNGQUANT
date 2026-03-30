@@ -1,0 +1,17 @@
+
+# Security
+.env
+*.key
+*.pem
+
+# Local dev / build artifacts
+.venv/
+frontend/node_modules/
+frontend/node_modules*/
+
+# Python / ML artifacts (generated)
+# Local runtime state
+portfolio.json
+
+# Local binaries (not source)
+youngquant_server
