@@ -63,6 +63,14 @@ const Header = ({
       return;
     }
 
+    // 如果用户只是在当前已选定的完整代码上“聚焦”，不弹下拉
+    // 只有在用户修改了输入（例如输入部分码/换成别的码）时才展示候选。
+    if (term === currentSym && term.length === 6) {
+      setSuggestions([]);
+      setSuggestionsOpen(false);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       try {
         setSuggestionsLoading(true);
@@ -81,7 +89,11 @@ const Header = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, period, searchFocused]);
+  }, [searchTerm, period, searchFocused, currentSym]);
+
+  useEffect(() => {
+    if (!searchFocused) setSuggestionsOpen(false);
+  }, [searchFocused]);
 
   return (
     <header className="px-12 bg-bg-deep/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center z-[100] sticky top-0 h-20">
