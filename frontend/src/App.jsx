@@ -40,6 +40,39 @@ const Header = ({
   onLogout
 }) => {
   const [searchTerm, setSearchTerm] = useState(currentSym);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+
+  useEffect(() => {
+    setSearchTerm(currentSym);
+  }, [currentSym]);
+
+  useEffect(() => {
+    const term = (searchTerm || '').trim();
+    if (!term) {
+      setSuggestions([]);
+      setSuggestionsOpen(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setSuggestionsLoading(true);
+        const res = await fetch(`/api/stocks?q=${encodeURIComponent(term)}&period=${period}`);
+        const data = await res.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+        setSuggestionsOpen(true);
+      } catch {
+        setSuggestions([]);
+        setSuggestionsOpen(false);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, period]);
 
   return (
     <header className="px-12 bg-bg-deep/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center z-[100] sticky top-0 h-20">
@@ -59,10 +92,62 @@ const Header = ({
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && onSelectStock(searchTerm)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                const sym = suggestions?.[0]?.symbol || searchTerm;
+                setSuggestionsOpen(false);
+                onSelectStock(sym);
+              }}
               className="w-32 h-10 bg-black/40 border border-white/5 rounded-2xl px-5 text-sm font-bold text-white outline-none focus:border-secondary/30 focus:bg-black/60 transition-all text-center placeholder:text-white/10"
               placeholder="601899"
             />
+
+            {suggestionsOpen && (
+              <div className="absolute left-0 right-0 top-[44px] bg-bg-deep/95 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-[100]">
+                <div className="px-4 py-2 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">
+                  可选标的
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {suggestionsLoading ? (
+                    <div className="px-4 py-3 text-white/30 text-xs font-bold">加载中...</div>
+                  ) : suggestions.length === 0 ? (
+                    <div className="px-4 py-3 text-white/30 text-xs font-bold">无匹配结果</div>
+                  ) : (
+                    suggestions.slice(0, 8).map(s => {
+                      const okFeatures = s.has_features;
+                      const okModel = s.has_model;
+                      const badge =
+                        okFeatures && okModel ? '可预测' :
+                        okFeatures && !okModel ? '缺模型' :
+                        '待生成特征';
+                      const badgeClass =
+                        okFeatures && okModel ? 'text-up bg-up/10 border-up/20' :
+                        okFeatures && !okModel ? 'text-secondary bg-secondary/10 border-secondary/20' :
+                        'text-white/40 bg-white/5 border-white/10';
+
+                      return (
+                        <button
+                          key={s.symbol}
+                          onClick={() => {
+                            setSuggestionsOpen(false);
+                            onSelectStock(s.symbol);
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all text-left"
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-sm font-black text-white">{s.symbol}</span>
+                            <span className="text-xs text-text-dim font-bold">{s.name}</span>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${badgeClass}`}>
+                            {badge}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <button 
             onClick={() => onSelectStock(searchTerm)}
@@ -82,6 +167,14 @@ const Header = ({
             className={`text-white/30 group-hover:text-secondary transition-all duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
           />
           {refreshing ? '训练中...' : '重训流水线'}
+        </button>
+
+        <button
+          onClick={onOpenTutorial}
+          className="btn-pro btn-pro-glass h-10 px-8 text-white/80 group"
+        >
+          <Settings size={14} className="text-white/30 group-hover:text-secondary transition-all" />
+          教程
         </button>
 
         <div className="h-4 w-[1px] bg-white/10 mx-2"></div>
@@ -116,7 +209,20 @@ const Header = ({
   );
 };
 
-const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortfolio, onPeriodChange }) => {
+const Dashboard = ({
+  currentSym,
+  portfolio,
+  period,
+  logs,
+  onAddLog,
+  refreshPortfolio,
+  onPeriodChange,
+  signalInfo,
+  signalLoading,
+  signalError,
+  availability,
+  availabilityLoading
+}) => {
   const [price, setPrice] = useState(0);
 
   useEffect(() => {
@@ -139,6 +245,13 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
 
   useEffect(() => {
     if (!showDeepAnalysis) return;
+    if (availabilityLoading) return;
+    if (availability && !availability.has_features) {
+      setAiLoading(false);
+      setAiError('当前周期尚未生成特征文件，请先点击「重训流水线」。');
+      setAiReport(null);
+      return;
+    }
 
     let cancelled = false;
     const run = async () => {
@@ -160,7 +273,7 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
     return () => {
       cancelled = true;
     };
-  }, [showDeepAnalysis, currentSym, period]);
+  }, [showDeepAnalysis, currentSym, period, availability, availabilityLoading]);
 
   return (
     <div className="p-8 min-h-[calc(100vh-80px)] flex flex-col gap-8 animate-fade-in bg-bg-deep font-sans">
@@ -260,7 +373,19 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
                 </div>
                 <div className="flex items-center gap-4">
                    <span className="text-[10px] text-white/60 font-black uppercase tracking-widest">SIGNAL:</span>
-                   <span className="text-sm text-up font-black italic underline underline-offset-8 decoration-2">BUY NOW</span>
+                  {signalLoading ? (
+                    <span className="text-sm text-white/40 font-black italic">加载中...</span>
+                  ) : signalError ? (
+                    <span className="text-sm text-text-dim font-black italic">{signalError}</span>
+                  ) : (
+                    <span
+                      className={`text-sm font-black italic underline underline-offset-8 decoration-2 ${
+                        signalInfo?.signal === 'BUY' ? 'text-up' : signalInfo?.signal === 'SELL' ? 'text-down' : 'text-secondary'
+                      }`}
+                    >
+                      {signalInfo?.signal === 'BUY' ? 'BUY NOW' : signalInfo?.signal === 'SELL' ? 'SELL / HOLD' : 'HOLD'}
+                    </span>
+                  )}
                 </div>
              </div>
              <TradePanel 
@@ -268,6 +393,9 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
                 price={price} 
                 cash={portfolio.cash} 
                 stockName={stocks[currentSym]} 
+                suggestedSignal={signalInfo?.signal}
+                availability={availability}
+                availabilityLoading={availabilityLoading}
                 onTradeSuccess={(msg) => { onAddLog(msg); refreshPortfolio(); }}
              />
           </div>
@@ -347,13 +475,21 @@ const Dashboard = ({ currentSym, portfolio, period, logs, onAddLog, refreshPortf
   );
 };
 
-const DeepAnalysis = ({ currentSym, period }) => {
+const DeepAnalysis = ({ currentSym, period, availability, availabilityLoading }) => {
   const [activeTab, setActiveTab] = useState('sentiment');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [report, setReport] = useState(null);
 
   useEffect(() => {
+    if (availabilityLoading) return;
+    if (availability && !availability.has_features) {
+      setLoading(false);
+      setErr('当前周期尚未生成特征文件，请先点击「重训流水线」。');
+      setReport(null);
+      return;
+    }
+
     let cancelled = false;
     const run = async () => {
       setLoading(true);
@@ -379,7 +515,7 @@ const DeepAnalysis = ({ currentSym, period }) => {
     return () => {
       cancelled = true;
     };
-  }, [currentSym, period]);
+  }, [currentSym, period, availability, availabilityLoading]);
 
   const signal = report?.signal || 'HOLD';
   const conf = typeof report?.confidence === 'number' ? report.confidence : 0.82;
@@ -570,6 +706,12 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [user, setUser] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [signalInfo, setSignalInfo] = useState({ signal: 'HOLD', confidence: 0, date: '' });
+  const [signalLoading, setSignalLoading] = useState(false);
+  const [signalError, setSignalError] = useState('');
+  const [availability, setAvailability] = useState(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [_availabilityError, setAvailabilityError] = useState('');
   
   // Modals state
   const [showAuth, setShowAuth] = useState(false);
@@ -583,6 +725,42 @@ function App() {
     } catch { /* silent fail */ }
   }, [period]);
 
+  const fetchSignal = useCallback(async () => {
+    setSignalLoading(true);
+    setSignalError('');
+    try {
+      const res = await fetch(`/api/signal?symbol=${currentSym}&period=${period}&_=` + Date.now());
+      const data = await res.json();
+      if (data?.error) throw new Error(data.error);
+      setSignalInfo({
+        signal: data?.signal || 'HOLD',
+        confidence: typeof data?.confidence === 'number' ? data.confidence : 0,
+        date: data?.date || ''
+      });
+    } catch (e) {
+      setSignalInfo({ signal: 'HOLD', confidence: 0, date: '' });
+      setSignalError(e?.message || '未知错误');
+    } finally {
+      setSignalLoading(false);
+    }
+  }, [currentSym, period]);
+
+  const fetchAvailability = useCallback(async () => {
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+    try {
+      const res = await fetch(`/api/availability?symbol=${currentSym}&period=${period}&_=` + Date.now());
+      const data = await res.json();
+      if (!data) throw new Error('无可用数据');
+      setAvailability(data);
+    } catch (e) {
+      setAvailability(null);
+      setAvailabilityError(e?.message || '未知错误');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [currentSym, period]);
+
   useEffect(() => {
     // Wrap to avoid ESLint warning on direct call
     const init = async () => await fetchPortfolio();
@@ -590,6 +768,15 @@ function App() {
     const timer = setInterval(fetchPortfolio, 10000);
     return () => clearInterval(timer);
   }, [fetchPortfolio]);
+
+  useEffect(() => {
+    // Signal depends on both symbol and period.
+    fetchSignal();
+  }, [fetchSignal]);
+
+  useEffect(() => {
+    fetchAvailability();
+  }, [fetchAvailability]);
 
   const addLog = useCallback((msg) => setLogs(prev => [msg, ...prev].slice(0, 50)), []);
 
@@ -621,8 +808,10 @@ function App() {
     } finally {
       setRefreshing(false);
       await fetchPortfolio();
+      await fetchSignal();
+      await fetchAvailability();
     }
-  }, [refreshing, period, currentSym, addLog, fetchPortfolio]);
+  }, [refreshing, period, currentSym, addLog, fetchPortfolio, fetchSignal, fetchAvailability]);
 
   const isModalOpen = showAuth || showTutorial;
 
@@ -647,13 +836,21 @@ function App() {
                 currentSym={currentSym} 
                 portfolio={portfolio} 
                 period={period} 
+                signalInfo={signalInfo}
+                signalLoading={signalLoading}
+                signalError={signalError}
+                availability={availability}
+                availabilityLoading={availabilityLoading}
                 logs={logs}
                 onAddLog={addLog}
                 refreshPortfolio={fetchPortfolio}
                 onPeriodChange={setPeriod}
               />
             } />
-            <Route path="/analysis" element={<DeepAnalysis currentSym={currentSym} period={period} />} />
+            <Route
+              path="/analysis"
+              element={<DeepAnalysis currentSym={currentSym} period={period} availability={availability} availabilityLoading={availabilityLoading} />}
+            />
           </Routes>
         </main>
       </div>

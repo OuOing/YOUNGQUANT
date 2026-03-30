@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -86,6 +87,32 @@ var stockProfiles = map[string]map[string]interface{}{
 		"intro": "全球最大的动力电池制造商，市占率超 35%。",
 		"factors": "1. 新能源车销量\n2. 碳酸锂原材料价格\n3. 欧美产能布局\n4. 固态电池技术路线",
 	},
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func featuresFilename(symbol, period string) string {
+	if period == "daily" {
+		return fmt.Sprintf("features_%s_v3.csv", symbol)
+	}
+	return fmt.Sprintf("features_%s_%sm_v3.csv", symbol, period)
+}
+
+func modelFilename(symbol, period string) string {
+	if period == "daily" {
+		return fmt.Sprintf("model_%s.pkl", symbol)
+	}
+	return fmt.Sprintf("model_%s_%sm.pkl", symbol, period)
+}
+
+func stockBarsFilename(symbol, period string) string {
+	if period == "daily" {
+		return fmt.Sprintf("stock_%s.csv", symbol)
+	}
+	return fmt.Sprintf("stock_%s_%sm.csv", symbol, period)
 }
 
 // 速率限制：每只股票刷新冷却 5 分钟
@@ -444,9 +471,6 @@ func handleIndicators(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	reader := csv.NewReader(file)
-	lines, _ := reader.ReadAll()
-
 	type Row struct {
 		Time   string  `json:"time"`
 		Open   float64 `json:"open"`
@@ -459,13 +483,61 @@ func handleIndicators(w http.ResponseWriter, r *http.Request) {
 		RSI    float64 `json:"rsi"`
 		MACD   float64 `json:"macd"`
 	}
-	var data []Row
-	for i, r := range lines {
-		if i == 0 || len(r) < 22 { continue }
-		o, _ := strconv.ParseFloat(r[1], 64); c, _ := strconv.ParseFloat(r[2], 64); h, _ := strconv.ParseFloat(r[3], 64); l, _ := strconv.ParseFloat(r[4], 64)
-		v, _ := strconv.ParseFloat(r[7], 64); m5, _ := strconv.ParseFloat(r[15], 64); m20, _ := strconv.ParseFloat(r[16], 64); rs, _ := strconv.ParseFloat(r[19], 64); mc, _ := strconv.ParseFloat(r[22], 64)
-		data = append(data, Row{Time: r[0], Open: o, High: h, Low: l, Close: c, Volume: v, MA5: m5, MA20: m20, RSI: rs, MACD: mc})
+
+	reader := csv.NewReader(file)
+	header, err := reader.Read()
+	if err != nil {
+		http.Error(w, "features 文件读取失败", 500)
+		return
 	}
+
+	colIndex := make(map[string]int, len(header))
+	for i, name := range header {
+		colIndex[name] = i
+	}
+
+	// Parse by header names, so we don't depend on column order.
+	required := []string{"日期", "开盘", "收盘", "最高", "最低", "成交量", "MA5", "MA20", "RSI14", "MACD_Hist"}
+	for _, col := range required {
+		if _, ok := colIndex[col]; !ok {
+			http.Error(w, fmt.Sprintf("features 缺少列：%s", col), 500)
+			return
+		}
+	}
+
+	parseOrZero := func(s string) float64 {
+		v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		return v
+	}
+
+	var data []Row
+	for {
+		rec, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			break
+		}
+		// Ensure record has all required columns
+		if len(rec) <= colIndex["MACD_Hist"] {
+			continue
+		}
+
+		data = append(data, Row{
+			Time:   strings.TrimSpace(rec[colIndex["日期"]]),
+			Open:   parseOrZero(rec[colIndex["开盘"]]),
+			High:   parseOrZero(rec[colIndex["最高"]]),
+			Low:    parseOrZero(rec[colIndex["最低"]]),
+			Close:  parseOrZero(rec[colIndex["收盘"]]),
+			Volume: parseOrZero(rec[colIndex["成交量"]]),
+			MA5:    parseOrZero(rec[colIndex["MA5"]]),
+			MA20:   parseOrZero(rec[colIndex["MA20"]]),
+			RSI:    parseOrZero(rec[colIndex["RSI14"]]),
+			MACD:   parseOrZero(rec[colIndex["MACD_Hist"]]),
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
@@ -500,18 +572,60 @@ func handleBacktest(w http.ResponseWriter, r *http.Request) {
 func handleStocks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	q := strings.ToLower(r.URL.Query().Get("q"))
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "15"
+	}
 	
 	type StockInfo struct {
-		Symbol string `json:"symbol"`
-		Name   string `json:"name"`
+		Symbol       string `json:"symbol"`
+		Name         string `json:"name"`
+		HasFeatures  bool   `json:"has_features"`
+		HasModel     bool   `json:"has_model"`
+		HasPriceBars bool  `json:"has_price_bars"`
 	}
 	var results []StockInfo
 	for sym, name := range stockNames {
 		if q == "" || strings.Contains(sym, q) || strings.Contains(strings.ToLower(name), q) {
-			results = append(results, StockInfo{Symbol: sym, Name: name})
+			featuresOK := fileExists(filepath.Join(projectDir, featuresFilename(sym, period)))
+			modelOK := fileExists(filepath.Join(projectDir, modelFilename(sym, period)))
+			priceBarsOK := fileExists(filepath.Join(projectDir, stockBarsFilename(sym, period)))
+			results = append(results, StockInfo{
+				Symbol:        sym,
+				Name:          name,
+				HasFeatures:  featuresOK,
+				HasModel:     modelOK,
+				HasPriceBars: priceBarsOK,
+			})
 		}
 	}
 	json.NewEncoder(w).Encode(results)
+}
+
+func handleAvailability(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	symbol := r.URL.Query().Get("symbol")
+	if symbol == "" {
+		symbol = "601899"
+	}
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "15"
+	}
+
+	featuresOK := fileExists(filepath.Join(projectDir, featuresFilename(symbol, period)))
+	modelOK := fileExists(filepath.Join(projectDir, modelFilename(symbol, period)))
+	priceBarsOK := fileExists(filepath.Join(projectDir, stockBarsFilename(symbol, period)))
+
+	resp := map[string]interface{}{
+		"symbol": symbol,
+		"period": period,
+		"has_features": featuresOK,
+		"has_model":    modelOK,
+		"has_price_bars": priceBarsOK,
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func handleAIAdvisor(w http.ResponseWriter, r *http.Request) {
@@ -621,6 +735,7 @@ func main() {
 	http.HandleFunc("/api/portfolio", handlePortfolio)
 	http.HandleFunc("/api/trade", handleTrade)
 	http.HandleFunc("/api/stocks", handleStocks)
+	http.HandleFunc("/api/availability", handleAvailability)
 	http.HandleFunc("/api/ai-advisor", handleAIAdvisor)
 	http.HandleFunc("/api/ai-chat", handleAIChat)
 	http.HandleFunc("/api/news", handleNews)
