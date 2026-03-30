@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, BarChart3, MessageSquare, TrendingUp, Activity, 
   PieChart, Menu, Search, RefreshCw, ChevronDown, CheckCircle2,
@@ -77,11 +76,11 @@ const Header = ({
   return (
     <header className="px-12 bg-bg-deep/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center z-[100] sticky top-0 h-20">
       <div className="flex items-center">
-        <Link to="/" className="brand text-2xl font-brand tracking-tight flex items-center hover:opacity-80 transition-all">
+        <a href="/" className="brand text-2xl font-brand tracking-tight flex items-center hover:opacity-80 transition-all">
           <span className="font-black text-white">Young</span>
           <span className="font-medium text-secondary mx-1 drop-shadow-[0_0_8px_rgba(20,184,166,0.3)]">Quant</span>
           <span className="font-light text-white/60">Pro</span>
-        </Link>
+        </a>
       </div>
       
       <div className="flex items-center gap-6">
@@ -712,6 +711,14 @@ function App() {
   const [availability, setAvailability] = useState(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [_availabilityError, setAvailabilityError] = useState('');
+
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    const onPop = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   
   // Modals state
   const [showAuth, setShowAuth] = useState(false);
@@ -816,44 +823,43 @@ function App() {
   const isModalOpen = showAuth || showTutorial;
 
   return (
-    <BrowserRouter>
-      <div className={`min-h-screen flex flex-col transition-all duration-300 ${isModalOpen ? 'grayscale-[0.4] blur-[8px] pointer-events-none' : ''}`}>
-        <Header 
-          currentSym={currentSym} 
-          period={period}
-          refreshing={refreshing}
-          onRefreshPipeline={onRefreshPipeline}
-          onSelectStock={setCurrentSym} 
-          user={user}
-          onOpenAuth={() => setShowAuth(true)}
-          onOpenTutorial={() => setShowTutorial(true)}
-          onLogout={() => { setUser(null); addLog("用户已安全登出终端"); }}
-        />
-        <main className="flex-1 relative">
-          <Routes>
-            <Route path="/" element={
-              <Dashboard 
-                currentSym={currentSym} 
-                portfolio={portfolio} 
-                period={period} 
-                signalInfo={signalInfo}
-                signalLoading={signalLoading}
-                signalError={signalError}
-                availability={availability}
-                availabilityLoading={availabilityLoading}
-                logs={logs}
-                onAddLog={addLog}
-                refreshPortfolio={fetchPortfolio}
-                onPeriodChange={setPeriod}
-              />
-            } />
-            <Route
-              path="/analysis"
-              element={<DeepAnalysis currentSym={currentSym} period={period} availability={availability} availabilityLoading={availabilityLoading} />}
-            />
-          </Routes>
-        </main>
-      </div>
+    <div className={`min-h-screen flex flex-col transition-all duration-300 ${isModalOpen ? 'grayscale-[0.4] blur-[8px] pointer-events-none' : ''}`}>
+      <Header 
+        currentSym={currentSym} 
+        period={period}
+        refreshing={refreshing}
+        onRefreshPipeline={onRefreshPipeline}
+        onSelectStock={setCurrentSym} 
+        user={user}
+        onOpenAuth={() => setShowAuth(true)}
+        onOpenTutorial={() => setShowTutorial(true)}
+        onLogout={() => { setUser(null); addLog("用户已安全登出终端"); }}
+      />
+      <main className="flex-1 relative">
+        {pathname === '/analysis' ? (
+          <DeepAnalysis
+            currentSym={currentSym}
+            period={period}
+            availability={availability}
+            availabilityLoading={availabilityLoading}
+          />
+        ) : (
+          <Dashboard 
+            currentSym={currentSym} 
+            portfolio={portfolio} 
+            period={period} 
+            signalInfo={signalInfo}
+            signalLoading={signalLoading}
+            signalError={signalError}
+            availability={availability}
+            availabilityLoading={availabilityLoading}
+            logs={logs}
+            onAddLog={addLog}
+            refreshPortfolio={fetchPortfolio}
+            onPeriodChange={setPeriod}
+          />
+        )}
+      </main>
 
       {/* Modals are outside the blurred container */}
       <div className="pointer-events-auto">
@@ -867,7 +873,7 @@ function App() {
           onClose={() => setShowTutorial(false)} 
         />
       </div>
-    </BrowserRouter>
+    </div>
   );
 }
 

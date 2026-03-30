@@ -7,6 +7,28 @@ const ChatTerminal = ({ symbol, price, period, stockName }) => {
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef();
 
+  const fetchNewsAndGreet = useCallback(async (isInitial) => {
+    if (isInitial) setMessages([{ role: 'ai', text: '👋 正在为您同步全球市场情报...', id: Date.now() }]);
+    try {
+      const res = await fetch('/api/news');
+      const news = await res.json();
+      const target = `${stockName || symbol}（${period}）`;
+      let text = `👋 你好！我是 YoungQuant-v1。当前关注：${target}。今日财经核心内参：\n\n`;
+      if (news && news.length > 0) news.forEach((n, i) => text += `${i + 1}. ${n.title}\n`);
+      else text = "👋 你好！今日市场暂无重大突发信号，建议关注个股基本面。";
+
+      setMessages(prev => [
+        ...prev.filter(m => m.text !== '👋 正在为您同步全球市场情报...'),
+        { role: 'ai', text, id: Date.now() }
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        { role: 'ai', text: "👋 你好！我是您的智能金融分析助手 YoungQuant-v1。", id: Date.now() }
+      ]);
+    }
+  }, [period, symbol, stockName]);
+
   useEffect(() => {
     // 切换标的/周期时重置对话上下文（更符合“当前终端”的用户预期）
     setInput('');
@@ -19,22 +41,6 @@ const ChatTerminal = ({ symbol, price, period, stockName }) => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
-  const fetchNewsAndGreet = useCallback(async (isInitial) => {
-    if (isInitial) setMessages([{ role: 'ai', text: '👋 正在为您同步全球市场情报...', id: Date.now() }]);
-    try {
-      const res = await fetch('/api/news');
-      const news = await res.json();
-      const target = `${stockName || symbol}（${period}）`;
-      let text = `👋 你好！我是 YoungQuant-v1。当前关注：${target}。今日财经核心内参：\n\n`;
-      if (news && news.length > 0) news.forEach((n, i) => text += `${i+1}. ${n.title}\n`);
-      else text = "👋 你好！今日市场暂无重大突发信号，建议关注个股基本面。";
-
-      setMessages(prev => [...prev.filter(m => m.text !== '👋 正在为您同步全球市场情报...'), { role: 'ai', text, id: Date.now() }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'ai', text: "👋 你好！我是您的智能金融分析助手 YoungQuant-v1。", id: Date.now() }]);
-    }
-  }, [period, symbol, stockName]);
 
   const handleSend = async (customQuery = null) => {
     if (isTyping) return;
