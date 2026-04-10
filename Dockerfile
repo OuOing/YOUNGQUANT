@@ -38,8 +38,9 @@ COPY prepare_features.py .
 COPY train_model.py .
 COPY predict.py .
 
-# Install Python deps (minimal, no pandas/numpy for now)
-RUN pip3 install --no-cache-dir requests 2>/dev/null || true
+# Install Python deps
+RUN pip3 install --no-cache-dir --break-system-packages requests openai 2>/dev/null || \
+    pip3 install --no-cache-dir requests openai 2>/dev/null || true
 
 EXPOSE 8080
 
