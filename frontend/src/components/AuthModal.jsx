@@ -1,12 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User, ShieldCheck, X, ArrowRight, Smartphone } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, ArrowRight, X, Eye, EyeOff } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  CardAction
+} from "@/components/ui/card";
 
-const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+const CASH_OPTIONS = [
+  { value: 10000,   label: '1 万',  desc: '稍有挑战' },
+  { value: 100000,  label: '10 万', desc: '入门推荐' },
+  { value: 500000,  label: '50 万', desc: '进阶' },
+  { value: 1000000, label: '100 万', desc: '挑战' },
+];
+
+const AuthModal = ({ isOpen, onClose, onSuccess }) => {
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [initialCash, setInitialCash] = useState(100000);
+
 
   useEffect(() => {
     let timer;
@@ -16,118 +47,172 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  if (!isOpen) return null;
-
-  const handleSendCode = () => {
-    if (!email) return alert("请输入邮箱/手机号");
-    setCountdown(60);
-    // Simulation: In production, call /api/auth/send-code
-    alert("验证码已模拟发送：888888 (仅作演示)");
+  const validateForm = () => {
+    if (!email) return "请输入邮箱";
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "请输入有效的邮箱地址";
+    if (mode === 'login') {
+      if (!password) return "请输入密码";
+    } else {
+      if (password.length < 8) return "密码长度至少需要 8 位";
+    }
+    return null;
   };
 
-  const handleSubmit = (e) => {
+  const handleSendCode = () => {
+    if (!email) return setError("请先输入邮箱/手机号以发送验证码");
+    setCountdown(60);
+    setError("提示：验证码已模拟发送 888888 (演示模式)");
+    setTimeout(() => setError(''), 5000);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulation: Always succeed for now
-    onAuthSuccess({ email, name: email.split('@')[0] });
-    onClose();
+    setError('');
+    
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+    const url = mode === 'login' ? '/api/login' : '/api/register';
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, remember_me: true, name: email.split('@')[0], initial_cash: initialCash })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '认证失败，请检查凭证');
+        setLoading(false);
+        return;
+      }
+      if (mode === 'login') {
+        if (!data.user) {
+          throw new Error('Server response missing user data');
+        }
+        onSuccess(data);
+        onClose();
+      } else {
+        // 注册成功后自动登录
+        const loginRes = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, remember_me: true }),
+        });
+        const loginData = await loginRes.json();
+        if (loginRes.ok && loginData.user) {
+          onSuccess(loginData);
+          onClose();
+        } else {
+          setError('注册成功！请登录');
+          setTimeout(() => { setMode('login'); setError(''); }, 1500);
+        }
+      }
+    } catch (err) {
+      console.error('[AuthModal] submit error:', err);
+      setError(`Network error: ${err.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in group">
-      {/* Backdrop with Dimming/Blur */}
-      <div 
-        className="absolute inset-0 bg-bg-deep/40 backdrop-blur-3xl transition-all duration-700"
-        onClick={onClose}
-      ></div>
-      
-      {/* Modal Card */}
-      <div className="w-full max-w-md bg-bg-main/95 shadow-[0_32px_128px_rgba(0,0,0,0.95)] relative z-10 overflow-hidden rounded-[2.5rem] animate-fade-in border border-white/10">
-        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent 
+        className="sm:max-w-sm p-0 border-none bg-transparent shadow-none" 
+        aria-describedby="dialog-description"
+        showCloseButton={false}
+      >
+        <DialogTitle className="sr-only">Authentication</DialogTitle>
+        <DialogDescription id="dialog-description" className="sr-only">
+          Login or register to access the platform.
+        </DialogDescription>
         
-        <button onClick={onClose} className="absolute top-8 right-8 text-text-dim hover:text-white transition-colors bg-white/5 p-2.5 rounded-full">
-          <X size={20} />
-        </button>
-
-        <div className="p-14">
-          <div className="text-center mb-14">
-            <h2 className="text-4xl font-black font-brand tracking-tighter mb-3 text-white">
-              {mode === 'login' ? '系统登录' : '开启专业量化'}
-            </h2>
-            <p className="text-text-dim text-xs uppercase tracking-[0.3em] font-black italic">
-              YoungQuant Pro <span className="text-white/40">Terminal</span>
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-            <div className="relative group/input">
-              <Mail size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within/input:text-white transition-colors" />
-              <input 
-                type="text" 
-                placeholder="邮箱 / 手机号"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full bg-black/40 border-2 border-white/10 rounded-2xl px-14 py-5 text-base outline-none focus:border-white/30 transition-all font-bold text-white shadow-inner"
-                required
-              />
-            </div>
-
-            <div className="relative group/input">
-              <Lock size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within/input:text-white transition-colors" />
-              <input 
-                type="password" 
-                placeholder="安全密码"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full bg-black/40 border-2 border-white/10 rounded-2xl px-14 py-5 text-base outline-none focus:border-white/30 transition-all font-bold text-white shadow-inner"
-                required
-              />
-            </div>
-
-            {mode === 'register' && (
-              <div className="flex gap-4">
-                <div className="relative flex-1 group/input">
-                  <ShieldCheck size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-text-dim group-focus-within/input:text-white transition-colors" />
-                  <input 
-                    type="text" 
-                    placeholder="验证码"
-                    value={code}
-                    onChange={e => setCode(e.target.value)}
-                    className="w-full bg-black/40 border-2 border-white/10 rounded-2xl px-14 py-5 text-sm outline-none focus:border-white/30 transition-all font-bold text-white shadow-inner"
+        <Card className="w-full max-w-sm mx-auto border border-white/10 bg-[#0a0a0b] shadow-2xl pb-2">
+          <CardHeader className="p-6 pb-4 flex flex-col gap-1.5">
+            <CardTitle>{mode === 'login' ? '登录您的账户' : '创建新账户'}</CardTitle>
+            <CardDescription>
+              {mode === 'login'
+                ? '在下方输入您的邮箱或手机号以进行登录'
+                : '在下方输入您的邮箱或手机号以注册账号'}
+            </CardDescription>
+            <CardAction>
+              <Button 
+                variant="link" 
+                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                className="px-0"
+              >
+                {mode === 'login' ? '立即注册' : '返回登录'}
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="px-6 pb-6 pt-0">
+            <form onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-6">
+                <div className="grid gap-2">
+                  <Label htmlFor="email">邮箱 / 手机号</Label>
+                  <Input
+                    id="email"
+                    type="text"
+                    placeholder="m@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
                   />
                 </div>
-                <button 
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={countdown > 0}
-                  className={`px-8 rounded-2xl text-xs font-black border-2 transition-all ${countdown > 0 ? 'text-text-dim cursor-not-allowed bg-white/2 border-white/5' : 'bg-white/5 border-white/20 text-white hover:bg-white/10 hover:border-white/40'}`}
-                >
-                  {countdown > 0 ? `${countdown}s` : '获取验证码'}
-                </button>
+                {mode === 'login' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">密码</Label>
+                    <Input 
+                      id="password" 
+                      type="password"
+                      placeholder="请输入密码"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required 
+                    />
+                  </div>
+                )}
+                {mode === 'register' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="reg-password">密码</Label>
+                    <Input
+                      id="reg-password"
+                      type="password"
+                      placeholder="至少 8 位"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <p className="text-[11px] text-white/30">密码至少 8 位，注册后即可开始模拟交易</p>
+                  </div>
+                )}
+
+                {error && (
+                  <div className={`p-3 rounded-md border text-sm text-center ${
+                    error.includes('成功') 
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                      : 'bg-destructive/10 border-destructive/20 text-destructive'
+                  }`}>
+                    {error}
+                  </div>
+                )}
               </div>
-            )}
-
-            <button 
-              type="submit"
-              className="mt-8 bg-white text-black py-5 rounded-2xl font-black text-base uppercase tracking-[0.3em] hover:brightness-90 active:scale-95 transition-all flex items-center justify-center gap-4 shadow-2xl shadow-white/5"
-            >
-              {mode === 'login' ? '立即登录终端' : '完成注册'} <ArrowRight size={22} />
-            </button>
-          </form>
-
-          <div className="mt-14 text-center pt-10 border-t border-white/10">
-            <p className="text-sm font-bold text-text-muted">
-              {mode === 'login' ? '还没有专业账号？' : '已有账号？'}
-              <button 
-                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                className="text-white font-black ml-3 hover:underline underline-offset-4"
-              >
-                {mode === 'login' ? '点击注册' : '返回登录'}
-              </button>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+            </form>
+          </CardContent>
+          <CardFooter className="px-6 pb-2 flex-col gap-2">
+            <Button type="submit" disabled={loading} className="w-full" onClick={handleSubmit}>
+              {loading ? '处理中...' : (mode === 'login' ? '立即登录' : '立即注册')}
+            </Button>
+          </CardFooter>
+        </Card>
+      </DialogContent>
+    </Dialog>
   );
 };
 

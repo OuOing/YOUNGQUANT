@@ -71,16 +71,17 @@ if __name__ == "__main__":
         # 铜价暂时固定逻辑
         macro_df = fetch_macro_data("HG")
         
-        stock_filename = f"stock_{args.symbol}.csv"
+        stock_filename = os.path.join("data", f"stock_{args.symbol}.csv")
         if args.period != "daily":
-            stock_filename = f"stock_{args.symbol}_{args.period}m.csv"
+            stock_filename = os.path.join("data", f"stock_{args.symbol}_{args.period}m.csv")
             
         stock_df.to_csv(stock_filename, index=False)
         print(f"股票数据已保存到 {stock_filename}")
         
         if macro_df is not None:
-            macro_df.to_csv("macro_factors.csv", index=False)
-            print("宏观数据已保存到 macro_factors.csv")
+            macro_filename = os.path.join("data", "macro_factors.csv")
+            macro_df.to_csv(macro_filename, index=False)
+            print(f"宏观数据已保存到 {macro_filename}")
             
         print("\n🚀 所有数据就绪！可以运行 prepare_features.py")
     else:

@@ -16,9 +16,9 @@ def train_model(symbol, period="daily"):
     训练基于技术指标的 XGBoost 分类器（向后兼容 RandomForest）
     目标：预测未来一个周期的涨跌 (Binary)
     """
-    feature_file = f"features_{symbol}_v3.csv"
+    feature_file = os.path.join("data", f"features_{symbol}_v3.csv")
     if period != "daily":
-        feature_file = f"features_{symbol}_{period}m_v3.csv"
+        feature_file = os.path.join("data", f"features_{symbol}_{period}m_v3.csv")
         
     if not os.path.exists(feature_file):
         print(f"找不到特征文件: {feature_file}")
@@ -60,9 +60,9 @@ def train_model(symbol, period="daily"):
         top = sorted(imp.items(), key=lambda x: -x[1])[:3]
         print(f"[{period}] Top-3 特征: {', '.join(f'{k}={v:.3f}' for k,v in top)}")
 
-    model_name = f"model_{symbol}.pkl"
+    model_name = os.path.join("data", f"model_{symbol}.pkl")
     if period != "daily":
-        model_name = f"model_{symbol}_{period}m.pkl"
+        model_name = os.path.join("data", f"model_{symbol}_{period}m.pkl")
         
     joblib.dump(model, model_name)
     print(f"模型已保存为 {model_name}")

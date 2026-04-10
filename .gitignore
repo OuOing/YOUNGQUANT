@@ -4,6 +4,11 @@
 *.key
 *.pem
 
+# Database files (contain user data)
+*.db
+*.db-shm
+*.db-wal
+
 # Local dev / build artifacts
 .venv/
 frontend/node_modules/
@@ -15,3 +20,4 @@ portfolio.json
 
 # Local binaries (not source)
 youngquant_server
+node_modules

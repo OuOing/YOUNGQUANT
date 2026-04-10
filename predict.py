@@ -9,9 +9,9 @@ def predict_signal(symbol, period="daily"):
     加载最新特征，使用最新模型进行预测
     """
     # 动态构造文件名
-    feature_file = f"features_{symbol}_v3.csv"
+    feature_file = os.path.join("data", f"features_{symbol}_v3.csv")
     if period != "daily":
-        feature_file = f"features_{symbol}_{period}m_v3.csv"
+        feature_file = os.path.join("data", f"features_{symbol}_{period}m_v3.csv")
         
     if not os.path.exists(feature_file):
         return {"error": f"Features file not found for {period}"}
@@ -27,9 +27,9 @@ def predict_signal(symbol, period="daily"):
     X_latest = pd.DataFrame([latest[features_cols]])
 
     # 加载模型
-    model_name = f"model_{symbol}.pkl"
+    model_name = os.path.join("data", f"model_{symbol}.pkl")
     if period != "daily":
-        model_name = f"model_{symbol}_{period}m.pkl"
+        model_name = os.path.join("data", f"model_{symbol}_{period}m.pkl")
         
     if not os.path.exists(model_name):
         return {"error": f"Model not found for {period}"}

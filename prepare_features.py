@@ -7,9 +7,9 @@ def prepare_features(symbol, period="daily"):
     """
     加载原始行情和宏观数据，生成技术指标特征
     """
-    stock_file = f"stock_{symbol}.csv"
+    stock_file = os.path.join("data", f"stock_{symbol}.csv")
     if period != "daily":
-        stock_file = f"stock_{symbol}_{period}m.csv"
+        stock_file = os.path.join("data", f"stock_{symbol}_{period}m.csv")
         
     if not os.path.exists(stock_file):
         print(f"找不到数据文件: {stock_file}")
@@ -25,8 +25,9 @@ def prepare_features(symbol, period="daily"):
     df['date_only'] = df['日期'].dt.date
 
     # 2. 加载宏观因子 (铜价)
-    if os.path.exists("macro_factors.csv"):
-        m_df = pd.read_csv("macro_factors.csv")
+    macro_file = os.path.join("data", "macro_factors.csv")
+    if os.path.exists(macro_file):
+        m_df = pd.read_csv(macro_file)
         m_df['日期'] = pd.to_datetime(m_df['日期']).dt.date
         # 合并 (根据日期合并)
         df = pd.merge(df, m_df, left_on='date_only', right_on='日期', how='left', suffixes=('', '_m'))
@@ -34,7 +35,7 @@ def prepare_features(symbol, period="daily"):
         df['铜价'] = df['铜价'].ffill()
         df = df.drop(columns=['日期_m', 'date_only'])
     else:
-        print("未发现 macro_factors.csv，跳过宏观因子。")
+        print(f"未发现 {macro_file}，跳过宏观因子。")
         df['铜价'] = 0
 
     # 3. 计算技术指标
@@ -82,9 +83,9 @@ def prepare_features(symbol, period="daily"):
     df = df.dropna()
 
     # 5. 保存特征文件
-    output_file = f"features_{symbol}_v3.csv"
+    output_file = os.path.join("data", f"features_{symbol}_v3.csv")
     if period != "daily":
-        output_file = f"features_{symbol}_{period}m_v3.csv"
+        output_file = os.path.join("data", f"features_{symbol}_{period}m_v3.csv")
         
     df.to_csv(output_file, index=False)
     print(f"特征工程完成！结果已保存到 {output_file}，样本数: {len(df)}")

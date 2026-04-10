@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --color-bg-deep: #0a0a0b;
@@ -12,47 +17,65 @@
   --color-text-dim: #64748b;
   --color-up: #ef4444;
   --color-down: #22c55e;
-  
+
   --font-brand: "Outfit", sans-serif;
-  --font-main: "Inter", sans-serif;
+  --font-main: "Inter", "Microsoft YaHei", sans-serif;
+  --font-pro: "Microsoft YaHei", "Inter", sans-serif;
 }
 
 :root {
   /* Soft Black Restoration - Neutral & Solid Blocks */
-  --bg-deep: #0a0a0b;
-  --bg-main: #121214;
-  --bg-card: rgba(30, 30, 35, 0.4);
-  --bg-glass: rgba(18, 18, 20, 0.9); 
-  --border: rgba(255, 255, 255, 0.12);
-  --border-active: rgba(255, 255, 255, 0.25);
-  
-  --primary: #f1f5f9;
-  --secondary: #94a3b8;
-  --accent: #475569;
-  
-  --text-main: #f8fafc;
+  --bg-deep: #050505;
+  --bg-main: #0a0a0b;
+  --bg-card: rgba(20, 20, 25, 0.6);
+  --bg-glass: rgba(5, 5, 5, 0.85); 
+  --border: rgba(255, 255, 255, 0.05);
+  --border-active: rgba(20, 184, 166, 0.3);
+
+  --primary: #14b8a6;
+  --secondary: #14b8a6;
+  --accent: #0d9488;
+
+  --text-main: #ffffff;
   --text-muted: #94a3b8;
-  --text-dim: #64748b;
-  
+  --text-dim: #4b5563;
+
   --up: #ef4444;
   --down: #22c55e;
   --warning: #f59e0b;
-  
+
   --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.4);
-  
+
   --font-main: 'Inter', system-ui, -apple-system, sans-serif;
   --font-brand: 'Outfit', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --background: #050505;
+  --foreground: #ffffff;
+  --card: #0a0a0b;
+  --card-foreground: #ffffff;
+  --popover: #0a0a0b;
+  --popover-foreground: #ffffff;
+  --primary-foreground: #ffffff;
+  --secondary-foreground: #ffffff;
+  --muted: #1e1e2e;
+  --muted-foreground: #94a3b8;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --input: #121214;
+  --ring: #14b8a6;
+  --radius: 0.5rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  -webkit-font-smoothing: antialiased;
-}
 
 body {
   background-color: var(--bg-deep);
@@ -127,13 +150,27 @@ button, input, select {
 
 /* Solid Block Card System - Phase 17 Transformation */
 .section-card {
-  @apply bg-black/60 backdrop-blur-[60px] border border-white/10 rounded-[2.5rem] flex flex-col p-8 overflow-auto shadow-2xl min-h-0;
-  border-width: 2px !important;
-  transition: all 0.3s ease;
+  @apply bg-black/80 border border-white/5 rounded-[2.5rem] flex flex-col p-8 shadow-2xl min-h-0;
+  border-width: 1.5px !important;
+  transition: border-color 0.3s ease;
+  overflow: visible;
+  position: relative;
+}
+
+/* backdrop-blur 移到伪元素，避免创建 stacking context 影响 portal 层级 */
+.section-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(60px);
+  -webkit-backdrop-filter: blur(60px);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .section-card:hover {
-  border-color: rgba(0, 242, 234, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 .section-header {
@@ -149,7 +186,7 @@ button, input, select {
 }
 
 .ai-tag.ai-special {
-  @apply bg-[#00f2ea] text-[#0a0a0b] shadow-[0_0_20px_rgba(0,242,234,0.3)];
+  @apply bg-white text-[#0a0a0b] shadow-[0_0_20px_rgba(255,255,255,0.1)];
 }
 
 .section-title-text {
@@ -157,21 +194,24 @@ button, input, select {
 }
 
 .section-action-btn {
-  background: #00f2ea;
+  background: #ffffff;
   color: #000;
-  padding: 0.75rem 1.5rem;
-  border-radius: 1rem;
-  font-size: 0.875rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 900;
   transition: all 0.3s ease;
   cursor: pointer;
   border: none;
-  box-shadow: 0 0 20px rgba(0, 242, 234, 0.3);
+  box-shadow: 0 10px 20px rgba(255, 255, 255, 0.05);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .section-action-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(0, 242, 234, 0.5);
+  background: #f0f0f0;
+  box-shadow: 0 15px 30px rgba(255, 255, 255, 0.1);
 }
 
 /* Global Professional Button Standard */
@@ -196,3 +236,202 @@ button, input, select {
   @apply bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/[0.08] hover:text-white;
 }
 
+/* Hide TradingView Attribution */
+.tv-lightweight-charts-logo {
+  display: none !important;
+}
+
+/* Pro Modal Base */
+.modal-pro {
+  font-family: var(--font-pro);
+  @apply rounded-[2rem] border-white/10 shadow-[0_32px_128px_rgba(0,0,0,0.95)];
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* High-End Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(20, 184, 166, 0.3); /* secondary color theme */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 184, 166, 0.6);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
+}
+
+.custom-scrollbar:hover {
+  scrollbar-color: rgba(20, 184, 166, 0.3) transparent;
+}
+
+/* ===== 移动端优化 ===== */
+@media (max-width: 768px) {
+  /* 防止横向滚动 */
+  body { overflow-x: hidden; }
+  
+  /* 移动端字体大小调整 */
+  .section-card { border-radius: 1.25rem; padding: 1rem; }
+  
+  /* 触摸目标最小尺寸 */
+  button, a { min-height: 36px; }
+}
+
+/* ===== 动画增强 ===== */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInBottom {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.slide-in-from-right-4 {
+  animation-name: slideInRight;
+}
+
+.slide-in-from-bottom-4 {
+  animation-name: slideInBottom;
+}
+
+.zoom-in-95 {
+  animation-name: scaleIn;
+}
+
+/* ===== 滚动条美化 ===== */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ===== 选中文字颜色 ===== */
+::selection { background: rgba(148, 163, 184, 0.3); color: white; }
+
+/* ===== 数字字体优化 ===== */
+.font-brand, .tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ===== Secondary (teal) 文字发光效果 ===== */
+.text-secondary {
+  text-shadow: 0 0 12px rgba(20, 184, 166, 0.5), 0 0 24px rgba(20, 184, 166, 0.2);
+}
