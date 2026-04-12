@@ -2191,7 +2191,7 @@ function App() {
       {refreshModal.open && createPortal(
         <div className="fixed inset-0 z-[99800] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md"
-            onClick={() => refreshModal.done && setRefreshModal(m => ({ ...m, open: false }))} />
+            onClick={() => setRefreshModal(m => ({ ...m, open: false }))} />
           <div className="relative z-10 w-full max-w-3xl bg-[#0a0a0b] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex">
 
             {/* ── 左侧：模型流程介绍 ── */}
@@ -2294,6 +2294,12 @@ function App() {
                 {refreshModal.done && (
                   <button onClick={() => setRefreshModal(m => ({ ...m, open: false }))}
                     className="text-white/30 hover:text-white transition-colors text-lg leading-none">✕</button>
+                )}
+                {!refreshModal.done && (
+                  <button onClick={() => setRefreshModal(m => ({ ...m, open: false }))}
+                    className="text-[10px] text-white/25 hover:text-white/60 transition-colors border border-white/10 px-2 py-1 rounded-lg">
+                    后台运行
+                  </button>
                 )}
               </div>
 
