@@ -74,7 +74,7 @@ const OrderList = ({ token, refreshKey }) => {
 
 // ── 主组件 ────────────────────────────────────────────────
 const TradePanel = ({
-  symbol, price, cash, stockName, suggestedSignal,
+  symbol, price: priceProp, cash, stockName, suggestedSignal,
   availability, availabilityLoading, onTradeSuccess, portfolio,
   orderRefreshKey
 }) => {
@@ -83,8 +83,37 @@ const TradePanel = ({
   const [limitPrice, setLimitPrice] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [latestPrice, setLatestPrice] = useState(0);
   const toast = useToast();
   const token = localStorage.getItem('yq_token');
+
+  // 从 stock_bars 获取最新价格（不依赖 K 线图回调）
+  useEffect(() => {
+    if (!symbol) return;
+    const fetchLatestPrice = async () => {
+      try {
+        // 先试 daily，再试 15m
+        const res = await fetch(`/api/indicators?symbol=${symbol}&period=daily`);
+        const data = await res.json();
+        const bars = data.data || [];
+        if (bars.length > 0) {
+          setLatestPrice(parseFloat(bars[bars.length - 1].close) || 0);
+          return;
+        }
+        // fallback: 15m
+        const res2 = await fetch(`/api/indicators?symbol=${symbol}&period=15`);
+        const data2 = await res2.json();
+        const bars2 = data2.data || [];
+        if (bars2.length > 0) {
+          setLatestPrice(parseFloat(bars2[bars2.length - 1].close) || 0);
+        }
+      } catch {}
+    };
+    fetchLatestPrice();
+  }, [symbol]);
+
+  // 优先用 K 线图传入的实时价格，fallback 用 stock_bars 最新价
+  const price = priceProp > 0 ? priceProp : latestPrice;
 
   const tradeAmount = price > 0 ? parseFloat(qty) * price : 0;
   const { warnings, hasWarning } = useRiskGuard(portfolio, tradeAmount);
@@ -94,7 +123,6 @@ const TradePanel = ({
   const maxBuy = price > 0 ? Math.floor(cash / (price * 1.0005) / 100) * 100 : 0;
 
   const canTrade = useMemo(() => {
-    // 只要有价格就允许交易，不强制要求特征文件
     return price > 0;
   }, [price]);
 
@@ -125,6 +153,19 @@ const TradePanel = ({
     if (!token) {
       toast.error('请先登录后再进行交易');
       return;
+    }
+
+    // 非交易时段提醒（模拟盘仍可交易，但给出提示）
+    const now = new Date();
+    const day = now.getDay();
+    const h = now.getHours(), m = now.getMinutes();
+    const isWeekend = day === 0 || day === 6;
+    const isTradingHour = !isWeekend && (
+      (h > 9 || (h === 9 && m >= 30)) && (h < 11 || (h === 11 && m <= 30)) ||
+      (h >= 13 && h < 15)
+    );
+    if (!isTradingHour) {
+      toast.warning('当前为非交易时段（A股交易时间：周一至周五 9:30-11:30, 13:00-15:00），模拟盘以最近收盘价成交', 5000);
     }
 
     if (hasWarning) {
@@ -204,9 +245,12 @@ const TradePanel = ({
           {/* 状态 */}
           <div className="h-4 flex items-center justify-between">
             {price <= 0 ? (
-              <span className="text-[10px] text-white/20 flex items-center gap-2"><Info size={12} />价格未就绪，请先运行重训流水线</span>
+              <span className="text-[10px] text-white/20 flex items-center gap-2"><Info size={12} />价格加载中...</span>
             ) : (
-              <span className="text-[10px] text-secondary flex items-center gap-2"><ShieldCheck size={12} />就绪 · 当前价 ¥{price.toFixed(2)}</span>
+              <span className="text-[10px] text-secondary flex items-center gap-2">
+                <ShieldCheck size={12} />
+                就绪 · {priceProp > 0 ? '实时' : '收盘'}价 ¥{price.toFixed(2)}
+              </span>
             )}
             {portfolio?.holdings?.[symbol] && (
               <span className="text-[10px] text-white/40">

@@ -27,7 +27,6 @@ services:
       - PROJECT_DIR=/app
       - JWT_SECRET=${JWT_SECRET}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DATABASE_URL=postgres://youngquant:${POSTGRES_PASSWORD:-changeme}@postgres:5432/youngquant?sslmode=disable
     volumes:
       - ./data:/app/data
     depends_on:

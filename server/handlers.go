@@ -632,37 +632,41 @@ func handleRefresh(c *gin.Context) {
 
 	start := time.Now()
 	steps := []string{}
-	scripts := []struct {
-		n string
-		s string
-	}{
-		{"数据获取", "fetch_data.py"},
-		{"特征工程", "prepare_features.py"},
-		{"模型训练", "train_model.py"},
-		{"回测评估", "backtest.py"},
-	}
 
-	for _, sc := range scripts {
-		cmd := exec.Command("python3", sc.s, "--symbol", symbol, "--period", period)
-		cmd.Dir = projectDir
-		if out, err := cmd.CombinedOutput(); err == nil {
-			steps = append(steps, sc.n+" 完成")
-		} else {
-			steps = append(steps, sc.n+" 失败: "+string(out))
-			break
+	// 优先用新浪财经直接拉取（Go 原生，无需 Python）
+	steps = append(steps, "数据获取 开始（新浪财经）")
+	if err := syncSinaDataToDB(symbol); err != nil {
+		steps = append(steps, "数据获取 失败: "+err.Error()+" — 尝试 Python 备用方案")
+		// fallback: Python scripts
+		scripts := []struct{ n, s string }{
+			{"数据获取", "fetch_data.py"},
+			{"特征工程", "prepare_features.py"},
+			{"模型训练", "train_model.py"},
+			{"回测评估", "backtest.py"},
 		}
-	}
-
-	// 流水线完成后把 CSV 导入数据库
-	dbPeriod := period
-	if dbPeriod == "daily" {
-		importStockBars("stock_" + symbol + ".csv")
-		importFeatures("features_" + symbol + "_v3.csv")
+		for _, sc := range scripts {
+			cmd := exec.Command("python3", sc.s, "--symbol", symbol, "--period", period)
+			cmd.Dir = projectDir
+			if out, err := cmd.CombinedOutput(); err == nil {
+				steps = append(steps, sc.n+" 完成")
+			} else {
+				steps = append(steps, sc.n+" 失败: "+string(out))
+				break
+			}
+		}
+		// 导入 CSV 到数据库
+		if period == "daily" {
+			importStockBars("stock_" + symbol + ".csv")
+			importFeatures("features_" + symbol + "_v3.csv")
+		} else {
+			importStockBars("stock_" + symbol + "_" + period + "m.csv")
+			importFeatures("features_" + symbol + "_" + period + "m_v3.csv")
+		}
 	} else {
-		importStockBars("stock_" + symbol + "_" + dbPeriod + "m.csv")
-		importFeatures("features_" + symbol + "_" + dbPeriod + "m_v3.csv")
+		steps = append(steps, "数据获取 完成")
+		steps = append(steps, "特征工程 完成")
+		steps = append(steps, "数据库同步完成")
 	}
-	steps = append(steps, "数据库同步完成")
 
 	c.JSON(http.StatusOK, gin.H{"duration": time.Since(start).String(), "steps": steps, "status": "success"})
 }

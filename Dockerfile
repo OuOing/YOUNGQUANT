@@ -1,26 +1,25 @@
-# ---- Stage 1: Build frontend ----
-FROM node:22-alpine AS frontend-builder
+# ---- Stage 1: Frontend dist (pre-built locally) ----
+FROM alpine:3.19 AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
+COPY frontend/dist ./dist
 
-# ---- Stage 2: Build Go backend ----
-FROM golang:1.25-alpine AS backend-builder
+# ---- Stage 2: Go binary (pre-built locally for linux/amd64) ----
+FROM alpine:3.19 AS backend-builder
 WORKDIR /app
-COPY go.mod go.sum ./
-RUN go env -w GOPROXY=https://goproxy.cn,direct
-RUN go mod download
-COPY . .
-RUN go build -o youngquant_server ./server/...
+COPY youngquant_server_linux ./youngquant_server
 
-# ---- Stage 3: Final image ----
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates python3 py3-pip tzdata
+# ---- Stage 3: Final image (Debian for Python scientific packages) ----
+FROM python:3.11-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
+
+# Install Python deps
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    requests openai akshare pandas numpy scikit-learn xgboost
 
 # Copy backend binary
 COPY --from=backend-builder /app/youngquant_server .
@@ -38,10 +37,6 @@ COPY fetch_data.py .
 COPY prepare_features.py .
 COPY train_model.py .
 COPY predict.py .
-
-# Install Python deps
-RUN pip3 install --no-cache-dir --break-system-packages requests openai 2>/dev/null || \
-    pip3 install --no-cache-dir requests openai 2>/dev/null || true
 
 EXPOSE 8080
 
