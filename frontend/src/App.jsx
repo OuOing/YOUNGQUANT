@@ -37,6 +37,7 @@ import DraggableCard from './components/DraggableCard';
 import MobileNav from './components/MobileNav';
 import ErrorBoundary from './components/ErrorBoundary';
 import NewUserChecklist from './components/NewUserChecklist';
+import TermTooltip from './components/TermTooltip';
 
 const stocks = { 
   '601899': '紫金矿业', '600519': '贵州茅台', '000001': '平安银行', '600036': '招商银行', 
@@ -312,8 +313,7 @@ const SSEListener = ({ user, onOrderFilled, onAddLog }) => {
 };
 
 // ── ChartCard：大K线卡片，含行情数据条 + K线图 + 指标条 ──
-const ChartCard = ({ currentSym, period, onPeriodChange, portfolio, stocks }) => {
-  const [lastBar, setLastBar] = useState(null);
+const ChartCard = ({ currentSym, period, onPeriodChange, portfolio, stocks }) => {  const [lastBar, setLastBar] = useState(null);
   const [prevClose, setPrevClose] = useState(null);
 
   // 拿前一根K线的收盘价用于计算涨跌幅
@@ -435,6 +435,7 @@ const ChartCard = ({ currentSym, period, onPeriodChange, portfolio, stocks }) =>
           period={period}
           zoom={60}
           onDataUpdate={handleDataUpdate}
+          tradeHistory={portfolio?.history?.filter(h => h.symbol === currentSym) || []}
         />
       </div>
 
@@ -1552,7 +1553,7 @@ const DeepAnalysis = ({ currentSym, period, availability, availabilityLoading, u
                     {signal === 'BUY' ? '市场偏强：关注买入机会' : signal === 'SELL' ? '市场偏弱：回避/减仓风险' : '市场观望：等待更清晰信号'}
                    </h4>
                    <p className="text-sm text-text-muted mt-2 max-w-sm font-medium">
-                    {report?.reason || '数据加载中...'}
+                    <TermTooltip text={report?.reason || '数据加载中...'} />
                    </p>
                 </div>
              </div>
@@ -1598,17 +1599,42 @@ const DeepAnalysis = ({ currentSym, period, availability, availabilityLoading, u
               <h4 className={`text-xl font-black ${textBySignal}`}>技术指标评分解读</h4>
               <p className="text-sm text-text-dim mt-4 leading-relaxed">
                 <b className="text-text-main">原因：</b>
-                {report?.reason || '数据加载中...'}
+                <TermTooltip text={report?.reason || '数据加载中...'} />
               </p>
               <p className="text-sm text-down/90 mt-3 leading-relaxed">
                 <b className="text-text-main">主要风险：</b>
-                {report?.risk || '—'}
+                <TermTooltip text={report?.risk || '—'} />
               </p>
+              {/* 支撑位/阻力位 */}
+              {report && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="bg-up/5 border border-up/20 rounded-xl p-3">
+                    <p className="text-[9px] text-up/60 uppercase tracking-widest mb-1">支撑位参考</p>
+                    <p className="text-sm font-black text-up">
+                      {report.support_level
+                        ? `¥${parseFloat(report.support_level).toFixed(2)}`
+                        : report.confidence > 0
+                          ? `¥${(parseFloat(report.confidence) * 0.95 * 100).toFixed(2)}`
+                          : '—'}
+                    </p>
+                    <p className="text-[9px] text-white/30 mt-0.5">MA20 附近</p>
+                  </div>
+                  <div className="bg-down/5 border border-down/20 rounded-xl p-3">
+                    <p className="text-[9px] text-down/60 uppercase tracking-widest mb-1">阻力位参考</p>
+                    <p className="text-sm font-black text-down">
+                      {report.resistance_level
+                        ? `¥${parseFloat(report.resistance_level).toFixed(2)}`
+                        : '近期高点'}
+                    </p>
+                    <p className="text-[9px] text-white/30 mt-0.5">前期压力区</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="glass rounded-2xl p-8 border-secondary/20 bg-secondary/5 flex flex-col gap-4">
               <h5 className="text-sm font-black text-text-main">量化策略提示</h5>
               <p className="text-sm text-text-dim leading-relaxed">
-                {report?.expert_tip || '—'}
+                <TermTooltip text={report?.expert_tip || '—'} />
               </p>
               <div className="h-[1px] bg-white/5" />
               <p className="text-xs text-text-dim">

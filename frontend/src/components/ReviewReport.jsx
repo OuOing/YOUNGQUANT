@@ -1,4 +1,66 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createChart, CandlestickSeries, LineSeries } from 'lightweight-charts';
+
+// 迷你 K 线图，标注买卖点
+const TradeMiniChart = ({ symbol, buyDate, buyPrice, sellDate, sellPrice }) => {
+  const containerRef = useRef();
+
+  useEffect(() => {
+    if (!containerRef.current || !symbol) return;
+    const container = containerRef.current;
+
+    fetch(`/api/indicators?symbol=${symbol}&period=daily`)
+      .then(r => r.json())
+      .then(json => {
+        const data = Array.isArray(json) ? json : (json.data || []);
+        if (!data.length) return;
+
+        const chart = createChart(container, {
+          layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#94a3b8' },
+          grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+          width: container.clientWidth || 400,
+          height: 160,
+          timeScale: { timeVisible: true },
+          rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
+        });
+
+        const series = chart.addSeries(CandlestickSeries, {
+          upColor: '#ef4444', downColor: '#10b981',
+          borderUpColor: '#ef4444', borderDownColor: '#10b981',
+          wickUpColor: '#ef4444', wickDownColor: '#10b981',
+        });
+
+        const formatted = data.map(d => ({
+          time: Math.floor(new Date(d.time).getTime() / 1000),
+          open: parseFloat(d.open), high: parseFloat(d.high),
+          low: parseFloat(d.low), close: parseFloat(d.close),
+        })).filter(d => !isNaN(d.time));
+
+        series.setData(formatted);
+
+        // 标注买卖点
+        const markers = [];
+        if (buyDate) {
+          const ts = Math.floor(new Date(buyDate).getTime() / 1000);
+          markers.push({ time: ts, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: `买¥${buyPrice?.toFixed(2)}`, size: 2 });
+        }
+        if (sellDate) {
+          const ts = Math.floor(new Date(sellDate).getTime() / 1000);
+          markers.push({ time: ts, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: `卖¥${sellPrice?.toFixed(2)}`, size: 2 });
+        }
+        if (markers.length) {
+          markers.sort((a, b) => a.time - b.time);
+          try { series.setMarkers(markers); } catch {}
+        }
+
+        chart.timeScale().fitContent();
+        return () => chart.remove();
+      })
+      .catch(() => {});
+  }, [symbol, buyDate, sellDate]);
+
+  return <div ref={containerRef} className="w-full rounded-xl overflow-hidden bg-black/20" style={{ height: 160 }} />;
+};
 
 /**
  * ReviewReport — AI 复盘报告组件
@@ -40,6 +102,14 @@ const ReviewReport = ({ tradeId, token, onClose }) => {
 
       {!loading && tab === 'trade' && tradeReport && (
         <div className="flex flex-col gap-3">
+          {/* 迷你 K 线图标注买卖点 */}
+          <TradeMiniChart
+            symbol={tradeReport.symbol}
+            buyDate={tradeReport.buy_date}
+            buyPrice={tradeReport.buy_price}
+            sellDate={tradeReport.date}
+            sellPrice={tradeReport.price}
+          />
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/40">操作评分</span>
             <span className={`text-2xl font-black ${SCORE_COLORS[tradeReport.score] || 'text-white'}`}>

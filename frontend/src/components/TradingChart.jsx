@@ -1,13 +1,58 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 
+// 简单形态识别：检测最近 N 根 K 线的形态
+function detectPatterns(data) {
+  if (!data || data.length < 5) return [];
+  const patterns = [];
+  const n = data.length;
+
+  // 检测锤子线（最近5根内）
+  for (let i = Math.max(0, n - 5); i < n; i++) {
+    const d = data[i];
+    const body = Math.abs(d.close - d.open);
+    const lower = Math.min(d.close, d.open) - d.low;
+    const upper = d.high - Math.max(d.close, d.open);
+    if (body > 0 && lower >= body * 2 && upper <= body * 0.3) {
+      patterns.push({ time: d.time, price: d.low, type: 'hammer', label: '锤子线', color: '#10b981', desc: '下影线长，可能底部反转信号' });
+    }
+  }
+
+  // 检测射击之星（最近5根内）
+  for (let i = Math.max(0, n - 5); i < n; i++) {
+    const d = data[i];
+    const body = Math.abs(d.close - d.open);
+    const upper = d.high - Math.max(d.close, d.open);
+    const lower = Math.min(d.close, d.open) - d.low;
+    if (body > 0 && upper >= body * 2 && lower <= body * 0.3) {
+      patterns.push({ time: d.time, price: d.high, type: 'shooting_star', label: '射击之星', color: '#ef4444', desc: '上影线长，可能顶部反转信号' });
+    }
+  }
+
+  // 检测 MA 金叉/死叉（最近10根内）
+  for (let i = Math.max(1, n - 10); i < n; i++) {
+    const prev = data[i - 1], curr = data[i];
+    if (prev.ma5 && prev.ma20 && curr.ma5 && curr.ma20) {
+      if (prev.ma5 <= prev.ma20 && curr.ma5 > curr.ma20) {
+        patterns.push({ time: curr.time, price: curr.close, type: 'golden_cross', label: '金叉', color: '#f59e0b', desc: 'MA5上穿MA20，短期看涨信号' });
+      }
+      if (prev.ma5 >= prev.ma20 && curr.ma5 < curr.ma20) {
+        patterns.push({ time: curr.time, price: curr.close, type: 'death_cross', label: '死叉', color: '#8b5cf6', desc: 'MA5下穿MA20，短期看跌信号' });
+      }
+    }
+  }
+
+  return patterns;
+}
+
 /**
  * TradingChart
  * Props:
  *   symbol, period, zoom
  *   onDataUpdate(lastBar, allData) — 回调最新K线数据给父组件
+ *   tradeHistory — 交易记录，用于标注买卖点 [{date, action, price}]
  */
-const TradingChart = ({ symbol, period, zoom = 60, onDataUpdate }) => {
+const TradingChart = ({ symbol, period, zoom = 60, onDataUpdate, tradeHistory = [] }) => {
   const chartContainerRef = useRef();
   const chartRef = useRef();
   const candleSeriesRef = useRef();
@@ -17,6 +62,8 @@ const TradingChart = ({ symbol, period, zoom = 60, onDataUpdate }) => {
   const didFitRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [patterns, setPatterns] = useState([]);
+  const [activePattern, setActivePattern] = useState(null); // { label, desc, x, y }
 
   const loadData = useCallback(async () => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
@@ -75,6 +122,49 @@ const TradingChart = ({ symbol, period, zoom = 60, onDataUpdate }) => {
       if (onDataUpdate && data.length > 0) {
         onDataUpdate(data[data.length - 1], data);
       }
+
+      // 形态识别
+      const detected = detectPatterns(formattedData.map((d, i) => ({
+        ...d,
+        ma5: data[i]?.ma5,
+        ma20: data[i]?.ma20,
+      })));
+      setPatterns(detected);
+
+      // 在 K 线图上标注形态和买卖点
+      const markers = [];
+      detected.forEach(p => {
+        markers.push({
+          time: p.time,
+          position: p.type === 'hammer' || p.type === 'golden_cross' ? 'belowBar' : 'aboveBar',
+          color: p.color,
+          shape: p.type === 'golden_cross' || p.type === 'death_cross' ? 'circle' : 'arrowUp',
+          text: p.label,
+          size: 1,
+        });
+      });
+
+      // 交易买卖点标注
+      if (tradeHistory && tradeHistory.length > 0) {
+        tradeHistory.forEach(t => {
+          if (!t.date || !t.action) return;
+          const ts = Math.floor(new Date(t.date).getTime() / 1000);
+          markers.push({
+            time: ts,
+            position: t.action === 'buy' ? 'belowBar' : 'aboveBar',
+            color: t.action === 'buy' ? '#10b981' : '#ef4444',
+            shape: t.action === 'buy' ? 'arrowUp' : 'arrowDown',
+            text: t.action === 'buy' ? `买¥${t.price?.toFixed(2)}` : `卖¥${t.price?.toFixed(2)}`,
+            size: 2,
+          });
+        });
+      }
+
+      if (candleSeriesRef.current && markers.length > 0) {
+        markers.sort((a, b) => a.time - b.time);
+        try { candleSeriesRef.current.setMarkers(markers); } catch {}
+      }
+
       setLoading(false);
     } catch (e) {
       console.error('Chart load error:', e);
@@ -221,6 +311,37 @@ const TradingChart = ({ symbol, period, zoom = 60, onDataUpdate }) => {
             <div className="w-3 h-0.5 bg-[#8b5cf6]" />
             <span className="text-[9px] text-white/30">MA20</span>
           </div>
+          {patterns.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-white/30">·</span>
+              <span className="text-[9px] text-yellow-400/60">{patterns.length} 个形态</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 形态说明浮层 */}
+      {patterns.length > 0 && !loading && !error && (
+        <div className="absolute top-3 right-3 flex flex-col gap-1 pointer-events-auto">
+          {patterns.map((p, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-help transition-all hover:bg-white/10"
+              style={{ backgroundColor: `${p.color}15`, border: `1px solid ${p.color}30` }}
+              onMouseEnter={() => setActivePattern(p)}
+              onMouseLeave={() => setActivePattern(null)}
+            >
+              <span className="text-[9px] font-black" style={{ color: p.color }}>{p.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 形态详情 tooltip */}
+      {activePattern && (
+        <div className="absolute top-12 right-3 z-10 bg-[#0f1117] border border-white/10 rounded-xl p-3 max-w-[200px] shadow-2xl">
+          <p className="text-xs font-black mb-1" style={{ color: activePattern.color }}>{activePattern.label}</p>
+          <p className="text-[11px] text-white/60 leading-relaxed">{activePattern.desc}</p>
         </div>
       )}
     </div>
