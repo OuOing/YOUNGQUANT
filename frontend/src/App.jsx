@@ -689,9 +689,9 @@ const Dashboard = ({
 
   // 财经新闻
   const FALLBACK_NEWS = [
-    { title: 'A股三大指数集体收涨，沪指涨0.8%，成交额突破万亿', source: '财联社' },
-    { title: '央行：继续实施稳健的货币政策，保持流动性合理充裕', source: '新华社' },
-    { title: '科技板块领涨，半导体、AI概念股表现活跃', source: '证券时报' },
+    { title: 'A股三大指数集体收涨，沪指涨0.8%，成交额突破万亿', source: '财联社', content: '沪深两市今日成交额突破万亿元，北向资金净流入超50亿元，市场情绪明显回暖。' },
+    { title: '央行：继续实施稳健的货币政策，保持流动性合理充裕', source: '新华社', content: '中国人民银行表示，将综合运用多种货币政策工具，保持银行体系流动性合理充裕，引导市场利率平稳运行。' },
+    { title: '科技板块领涨，半导体、AI概念股表现活跃', source: '证券时报', content: '受海外AI产业链景气度持续提升影响，A股科技板块今日强势上涨，半导体设备、AI算力等细分方向涨幅居前。' },
   ];
   const [news, setNews] = useState(FALLBACK_NEWS);
   const [expandedNews, setExpandedNews] = useState(null);
@@ -1038,13 +1038,18 @@ const Dashboard = ({
                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shrink-0 mt-0.5 ${i === 0 ? 'bg-up/20 text-up' : 'bg-white/5 text-white/30'}`}>
                            {i === 0 ? 'TOP' : `#${i+1}`}
                          </span>
-                         <p className="text-[11px] font-black text-white/70 group-hover/news:text-white transition-colors leading-relaxed flex-1">{item.title}</p>
+                         <div className="flex-1 min-w-0">
+                           <p className="text-[11px] font-black text-white/70 group-hover/news:text-white transition-colors leading-relaxed">{item.title}</p>
+                           <div className="flex items-center gap-2 mt-0.5">
+                             {item.source && <span className="text-[9px] text-white/25">{item.source}</span>}
+                             {item.time && <span className="text-[9px] text-white/20">{item.time?.slice(11, 16)}</span>}
+                           </div>
+                         </div>
                          <span className="text-[9px] text-white/20 shrink-0 mt-0.5">{expandedNews === i ? '▲' : '▼'}</span>
                        </div>
-                       {expandedNews === i && (
+                       {expandedNews === i && item.content && (
                          <div className="px-3 pb-3 border-t border-white/5 pt-2">
-                           {item.content && <p className="text-[11px] text-white/50 leading-relaxed mb-2">{item.content}</p>}
-                           {item.source && <p className="text-[9px] text-white/20">{item.source}</p>}
+                           <p className="text-[11px] text-white/50 leading-relaxed">{item.content}</p>
                          </div>
                        )}
                      </div>

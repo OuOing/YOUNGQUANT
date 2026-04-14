@@ -1051,31 +1051,15 @@ func handleNews(c *gin.Context) {
 		return
 	}
 
-	// 2. 尝试实时拉取，设 15s 超时
-	done := make(chan []byte, 1)
-	go func() {
-		cmd := exec.Command("python3", "-m", "ai.main", "--mode", "news")
-		cmd.Dir = projectDir
-		out, err := cmd.Output()
-		if err != nil || len(out) < 2 {
-			done <- nil
+	// 2. 从新浪财经拉取（Go 原生，无需 Python）
+	news := fetchSinaNews()
+	if len(news) > 0 {
+		data, err := json.Marshal(news)
+		if err == nil {
+			cacheSet(cacheKey, data)
+			c.Data(http.StatusOK, "application/json", data)
 			return
 		}
-		done <- out
-	}()
-
-	var result []byte
-	select {
-	case out := <-done:
-		result = out
-	case <-time.After(15 * time.Second):
-		result = nil
-	}
-
-	if result != nil {
-		cacheSet(cacheKey, result)
-		c.Data(http.StatusOK, "application/json", result)
-		return
 	}
 
 	// 3. 降级：返回 DB 中上次成功的数据

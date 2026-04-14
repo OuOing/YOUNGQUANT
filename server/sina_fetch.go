@@ -240,3 +240,78 @@ func calcRSI(closes []float64, idx, period int) float64 {
 	rs := (gains / float64(period)) / (losses / float64(period))
 	return 100 - 100/(1+rs)
 }
+
+// fetchSinaNews fetches latest financial news from Sina Finance RSS.
+// Returns up to 10 news items with title, summary, source and time.
+func fetchSinaNews() []map[string]string {
+	// 新浪财经滚动新闻 API
+	url := "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&k=&num=20&page=1&r=0.5"
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Referer", "https://finance.sina.com.cn")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	var raw struct {
+		Result struct {
+			Data []struct {
+				Title      string `json:"title"`
+				Summary    string `json:"summary"`
+				IntroWords string `json:"intro_words"`
+				Ctime      string `json:"ctime"`
+				Media      string `json:"media_name"`
+				URL        string `json:"url"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil
+	}
+
+	result := make([]map[string]string, 0, 10)
+	for i, item := range raw.Result.Data {
+		if i >= 10 {
+			break
+		}
+		title := item.Title
+		if title == "" {
+			continue
+		}
+		content := item.Summary
+		if content == "" {
+			content = item.IntroWords
+		}
+		// 截断摘要到 150 字
+		runes := []rune(content)
+		if len(runes) > 150 {
+			content = string(runes[:150]) + "..."
+		}
+		source := item.Media
+		if source == "" {
+			source = "新浪财经"
+		}
+		result = append(result, map[string]string{
+			"title":   title,
+			"content": content,
+			"source":  source,
+			"time":    item.Ctime,
+			"url":     item.URL,
+		})
+	}
+	return result
+}
