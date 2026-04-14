@@ -18,13 +18,14 @@ const KLineReplay = ({ symbol = '601899', period = 'daily' }) => {
   useEffect(() => {
     fetch(`/api/indicators?symbol=${symbol}&period=${period}`)
       .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) return;
+      .then(json => {
+        const data = Array.isArray(json) ? json : (json.data || []);
+        if (!data || data.length === 0) return;
         const formatted = data.map(d => ({
           time: Math.floor(new Date(d.time || d.Date).getTime() / 1000),
           open: parseFloat(d.open), high: parseFloat(d.high),
           low: parseFloat(d.low), close: parseFloat(d.close),
-        }));
+        })).filter(d => !isNaN(d.time) && !isNaN(d.close));
         setAllData(formatted);
         setIndex(Math.min(20, formatted.length));
       })
@@ -46,13 +47,19 @@ const KLineReplay = ({ symbol = '601899', period = 'daily' }) => {
     });
     chartRef.current = chart;
     seriesRef.current = series;
-    return () => { chart.remove(); };
+    return () => {
+      seriesRef.current = null;
+      chartRef.current = null;
+      chart.remove();
+    };
   }, []);
 
   useEffect(() => {
-    if (seriesRef.current && allData.length > 0) {
-      seriesRef.current.setData(allData.slice(0, index));
-      chartRef.current?.timeScale().fitContent();
+    if (seriesRef.current && chartRef.current && allData.length > 0) {
+      try {
+        seriesRef.current.setData(allData.slice(0, index));
+        chartRef.current?.timeScale().fitContent();
+      } catch {}
     }
   }, [index, allData]);
 
