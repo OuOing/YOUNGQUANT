@@ -1049,9 +1049,12 @@ const Dashboard = ({
                          </div>
                          <span className="text-[9px] text-white/20 shrink-0 mt-0.5">{expandedNews === i ? '▲' : '▼'}</span>
                        </div>
-                       {expandedNews === i && item.content && (
+                       {expandedNews === i && (
                          <div className="px-3 pb-3 border-t border-white/5 pt-2">
-                           <p className="text-[11px] text-white/50 leading-relaxed">{item.content}</p>
+                           {item.content
+                             ? <p className="text-[11px] text-white/50 leading-relaxed">{item.content}</p>
+                             : <p className="text-[11px] text-white/30 italic">暂无摘要</p>
+                           }
                          </div>
                        )}
                      </div>

@@ -269,12 +269,12 @@ func fetchSinaNews() []map[string]string {
 	var raw struct {
 		Result struct {
 			Data []struct {
-				Title      string `json:"title"`
-				Summary    string `json:"summary"`
-				IntroWords string `json:"intro_words"`
-				Ctime      string `json:"ctime"`
-				Media      string `json:"media_name"`
-				URL        string `json:"url"`
+				Title   string `json:"title"`
+				Summary string `json:"summary"`
+				Intro   string `json:"intro"`
+				Ctime   string `json:"ctime"`
+				Media   string `json:"media_name"`
+				URL     string `json:"url"`
 			} `json:"data"`
 		} `json:"result"`
 	}
@@ -292,9 +292,10 @@ func fetchSinaNews() []map[string]string {
 		if title == "" {
 			continue
 		}
-		content := item.Summary
+		// 优先用 intro，其次 summary
+		content := item.Intro
 		if content == "" {
-			content = item.IntroWords
+			content = item.Summary
 		}
 		// 截断摘要到 150 字
 		runes := []rune(content)
