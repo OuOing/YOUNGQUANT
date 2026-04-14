@@ -81,7 +81,7 @@ const DailyLesson = ({ token }) => {
         <div className="flex items-center gap-2">
           {streak > 0 && (
             <div className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-              <span className="text-[10px]">🔥</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
               <span className="text-[9px] font-black text-orange-400">{streak}天连续</span>
             </div>
           )}

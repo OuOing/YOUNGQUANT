@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, X, ChevronRight } from 'lucide-react';
+import { BarChart2, Search, TrendingUp, Newspaper, Zap, X, ChevronRight, Sparkles } from 'lucide-react';
 
-// 每次有新功能更新，在这里加一条，version 递增
 const UPDATES = [
   {
     version: '1.3.0',
     date: '2026-04-14',
     title: '功能更新',
     highlights: [
-      { emoji: '📊', text: 'K 线图自动识别形态（锤子线、金叉/死叉），右上角显示标注' },
-      { emoji: '🔍', text: 'AI 研报支持术语悬浮解释，鼠标悬停专业名词即可查看' },
-      { emoji: '📈', text: '交易复盘新增迷你 K 线图，标注你的买入/卖出点位' },
-      { emoji: '📰', text: '财经快讯接入新浪财经实时数据，有摘要和来源' },
-      { emoji: '⚡', text: '行情数据更新改用新浪财经，速度更快更稳定' },
+      { icon: BarChart2, text: 'K 线图自动识别形态（锤子线、金叉/死叉），右上角显示标注' },
+      { icon: Search, text: 'AI 研报支持术语悬浮解释，鼠标悬停专业名词即可查看' },
+      { icon: TrendingUp, text: '交易复盘新增迷你 K 线图，标注你的买入/卖出点位' },
+      { icon: Newspaper, text: '财经快讯接入新浪财经实时数据，有摘要和来源' },
+      { icon: Zap, text: '行情数据更新改用新浪财经，速度更快更稳定' },
     ],
   },
 ];
@@ -63,12 +62,17 @@ const WhatsNew = ({ onNavigate }) => {
 
           {/* 更新列表 */}
           <div className="flex flex-col gap-2 mb-4">
-            {LATEST.highlights.map((item, i) => (
-              <div key={i} className="flex items-start gap-2.5">
-                <span className="text-base leading-none mt-0.5">{item.emoji}</span>
-                <p className="text-[11px] text-white/60 leading-relaxed">{item.text}</p>
-              </div>
-            ))}
+            {LATEST.highlights.map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <div key={i} className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon size={11} className="text-white/40" />
+                  </div>
+                  <p className="text-[11px] text-white/60 leading-relaxed">{item.text}</p>
+                </div>
+              );
+            })}
           </div>
 
           {/* 操作 */}

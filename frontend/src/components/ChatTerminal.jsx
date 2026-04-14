@@ -162,7 +162,7 @@ const ChatTerminal = ({ symbol, price, period, stockName, token, user }) => {
         setIsTyping(false);
         setMessages(prev => [...prev, {
           role: 'ai',
-          text: '👋 你已使用了本次会话的 5 条免费消息。\n\n注册账号后可解锁无限 AI 对话，同时享有：\n- 交易记录永久保存\n- 学习进度同步\n- 排行榜参与资格\n\n注册完全免费，点击右上角「注册」即可。',
+          text: '你已使用了本次会话的 5 条免费消息。\n\n注册账号后可解锁无限 AI 对话，同时享有：\n- 交易记录永久保存\n- 学习进度同步\n- 排行榜参与资格\n\n注册完全免费，点击右上角「注册」即可。',
           id: Date.now(),
         }]);
         return;

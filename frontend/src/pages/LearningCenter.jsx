@@ -136,7 +136,13 @@ const LearningCenter = ({ token, symbol = '601899', onBack }) => {
             {showReplay && <KLineReplay symbol={symbol} period="daily" />}
             {!showReplay && (
               <div className="flex items-center gap-3 p-3 bg-white/[0.02] rounded-xl border border-white/5">
-                <span className="text-2xl">📊</span>
+                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center shrink-0">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-white/30">
+                    <rect x="1" y="3" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.6"/>
+                    <rect x="5.5" y="1" width="3" height="12" rx="0.5" fill="currentColor"/>
+                    <rect x="10" y="5" width="3" height="6" rx="0.5" fill="currentColor" opacity="0.6"/>
+                  </svg>
+                </div>
                 <div>
                   <p className="text-xs text-white/50">支持 1x / 2x / 4x 倍速播放，逐帧后退</p>
                   <p className="text-[10px] text-white/25 mt-0.5">点击「开始回放」加载历史 K 线数据</p>
@@ -179,7 +185,7 @@ const LearningCenter = ({ token, symbol = '601899', onBack }) => {
             ))}
           </div>
           <div className="bg-secondary/5 border border-secondary/20 rounded-2xl p-4 mt-2">
-            <p className="text-[10px] text-secondary font-black mb-1">💡 本平台模拟盘遵循以上全部规则</p>
+            <p className="text-[10px] text-secondary font-black mb-1">本平台模拟盘遵循以上全部规则</p>
             <p className="text-[10px] text-white/40">T+1、涨跌停、手续费均按真实 A 股标准执行，让你在零风险环境中体验真实交易压力。</p>
           </div>
         </div>

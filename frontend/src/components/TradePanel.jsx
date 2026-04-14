@@ -187,9 +187,9 @@ const TradePanel = ({
         const isFirst = !localStorage.getItem(firstTradeKey);
         if (isFirst) {
           localStorage.setItem(firstTradeKey, '1');
-          toast.success(`🎉 恭喜完成第一笔交易！${action === 'BUY' ? '买入' : '卖出'} ${stockName || symbol} ${tradeQty} 股 · 记得在"历史成交"查看记录`, 6000);
+          toast.success(`首笔交易完成！${action === 'BUY' ? '买入' : '卖出'} ${stockName || symbol} ${tradeQty} 股 · 记得在"历史成交"查看记录`, 6000);
         } else {
-          toast.success(`${action === 'BUY' ? '✅ 买入' : '📤 卖出'}成功：${stockName || symbol} ${tradeQty} 股 · ¥${(tradeQty * price).toLocaleString()}`);
+          toast.success(`${action === 'BUY' ? '买入' : '卖出'}成功：${stockName || symbol} ${tradeQty} 股 · ¥${(tradeQty * price).toLocaleString()}`);
         }
       } else {
         toast.error('交易失败：' + (data.msg || '未知错误'));

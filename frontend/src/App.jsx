@@ -1726,10 +1726,10 @@ const NewUserWelcome = ({ user, onDismiss, onNavigate }) => {
   if (!visible || !user) return null;
 
   const STEPS = [
-    { icon: '📈', title: '查看 K 线行情', desc: '左侧图表展示实时 K 线，可切换日线/15分钟线', action: null },
-    { icon: '🤖', title: '问 AI 助手', desc: '右侧对话框可以问任何股票问题', action: null },
-    { icon: '💰', title: '开始模拟交易', desc: `你有 ¥${(100000).toLocaleString()} 虚拟资金，点击"交易台"下单`, action: 'trade' },
-    { icon: '📚', title: '每日学习', desc: '学习中心有 60 天系统课程，每天 5 分钟', action: 'learning' },
+    { icon: '行情', title: '查看 K 线行情', desc: '左侧图表展示实时 K 线，可切换日线/15分钟线', action: null },
+    { icon: 'AI', title: '问 AI 助手', desc: '右侧对话框可以问任何股票问题', action: null },
+    { icon: '交易', title: '开始模拟交易', desc: `你有 ¥${(100000).toLocaleString()} 虚拟资金，点击"交易台"下单`, action: 'trade' },
+    { icon: '学习', title: '每日学习', desc: '学习中心有 60 天系统课程，每天 5 分钟', action: 'learning' },
   ];
 
   return (
@@ -1742,7 +1742,7 @@ const NewUserWelcome = ({ user, onDismiss, onNavigate }) => {
               <span className="w-1 h-1 rounded-full bg-secondary animate-pulse" />
               欢迎加入
             </div>
-            <h3 className="text-lg font-black text-white">你好，{user.name} 👋</h3>
+            <h3 className="text-lg font-black text-white">你好，{user.name}</h3>
             <p className="text-xs text-white/40 mt-0.5">账户已就绪，这里是快速上手指南</p>
           </div>
           <button onClick={dismiss} className="text-white/20 hover:text-white transition-colors text-xl leading-none">✕</button>
@@ -1755,7 +1755,9 @@ const NewUserWelcome = ({ user, onDismiss, onNavigate }) => {
               onClick={() => { if (step.action) { onNavigate?.(step.action); dismiss(); } }}
               className={`p-3 bg-white/5 border border-white/8 rounded-2xl ${step.action ? 'cursor-pointer hover:border-secondary/30 hover:bg-secondary/5 transition-all' : ''}`}
             >
-              <span className="text-xl mb-1.5 block">{step.icon}</span>
+              <div className="inline-flex items-center justify-center px-2 py-0.5 bg-white/8 border border-white/10 rounded-lg mb-1.5">
+                <span className="text-[9px] font-black text-white/50 uppercase tracking-widest">{step.icon}</span>
+              </div>
               <p className="text-xs font-black text-white mb-0.5">{step.title}</p>
               <p className="text-[10px] text-white/40 leading-relaxed">{step.desc}</p>
               {step.action && <p className="text-[10px] text-secondary mt-1">点击前往 →</p>}
