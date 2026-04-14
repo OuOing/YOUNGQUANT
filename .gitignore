@@ -20,4 +20,21 @@ portfolio.json
 
 # Local binaries (not source)
 youngquant_server
+server_bin
 node_modules
+
+# IDE / OS
+.DS_Store
+.vscode/
+*.DS_Store
+
+# Kiro internal
+.kiro/.DS_Store
+.kiro/specs/.DS_Store
+.kiro/specs/**/.DS_Store
+
+# Hypothesis test cache
+.hypothesis/
+
+# Adventure notes (internal)
+Adventure/

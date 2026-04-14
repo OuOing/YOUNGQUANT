@@ -34,6 +34,16 @@ var coreSymbols = []string{
 }
 
 func fetchSymbol(sym, period string) {
+	// 优先用新浪财经（Go 原生，无需 Python）
+	if period == "daily" {
+		if err := syncSinaDataToDB(sym); err != nil {
+			log.Printf("  ✗ %s [%s] 新浪数据失败: %v，跳过", sym, period, err)
+		} else {
+			log.Printf("  ✓ %s [%s] 新浪数据更新完成", sym, period)
+		}
+		return
+	}
+	// 15m 等分钟线暂时保留 Python 方案
 	cmd := exec.Command("python3", "fetch_data.py", "--symbol", sym, "--period", period)
 	cmd.Dir = projectDir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -42,7 +52,6 @@ func fetchSymbol(sym, period string) {
 	}
 	log.Printf("  ✓ %s [%s] 数据拉取完成", sym, period)
 
-	// 生成特征文件
 	go func() {
 		cmd2 := exec.Command("python3", "prepare_features.py", "--symbol", sym, "--period", period)
 		cmd2.Dir = projectDir
@@ -51,16 +60,9 @@ func fetchSymbol(sym, period string) {
 			return
 		}
 		log.Printf("  ✓ %s [%s] 特征生成完成", sym, period)
-
-		// 把 CSV 导入数据库（覆盖旧数据）
 		p := period
-		if p == "daily" {
-			importStockBars("stock_" + sym + ".csv")
-			importFeatures("features_" + sym + "_v3.csv")
-		} else {
-			importStockBars("stock_" + sym + "_" + p + "m.csv")
-			importFeatures("features_" + sym + "_" + p + "m_v3.csv")
-		}
+		importStockBars("stock_" + sym + "_" + p + "m.csv")
+		importFeatures("features_" + sym + "_" + p + "m_v3.csv")
 		log.Printf("  ✓ %s [%s] 数据库已更新", sym, period)
 	}()
 }

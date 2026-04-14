@@ -2198,8 +2198,8 @@ function App() {
             <div className="w-72 flex-shrink-0 bg-white/[0.02] border-r border-white/5 p-6 flex flex-col gap-6">
               <div>
                 <p className="text-[9px] font-black text-white/25 uppercase tracking-[0.3em] mb-1">YoungQuant V1</p>
-                <h3 className="text-sm font-black text-white">AI 信号训练流程</h3>
-                <p className="text-[10px] text-white/30 mt-1 leading-relaxed">K线数据每天自动更新，此流程专门用于重新训练 AI 交易信号模型。</p>
+                <h3 className="text-sm font-black text-white">行情数据更新流程</h3>
+                <p className="text-[10px] text-white/30 mt-1 leading-relaxed">通过新浪财经实时接口拉取最新 K 线数据，自动计算技术指标并更新数据库。</p>
               </div>
 
               {/* 流程时间线 */}
@@ -2208,34 +2208,34 @@ function App() {
                   {
                     step: '01',
                     name: '数据获取',
-                    tag: 'fetch_data.py',
-                    desc: '通过 AkShare 从东方财富拉取最新 K 线数据，存入 SQLite',
-                    detail: '日线 / 15分钟线 · 前复权',
+                    tag: 'Sina Finance API',
+                    desc: '从新浪财经实时接口拉取最新日线 K 线数据，覆盖近 500 个交易日',
+                    detail: '日线 · 前复权 · 实时',
                     keyword: '数据获取',
                   },
                   {
                     step: '02',
-                    name: '特征工程',
-                    tag: 'prepare_features.py',
-                    desc: '计算 MA5/MA20、RSI14、MACD 等技术指标，生成模型输入特征',
-                    detail: '6 维特征向量',
+                    name: '指标计算',
+                    tag: 'Go 内置计算',
+                    desc: '自动计算 MA5/MA20、RSI14 等技术指标，无需 Python 依赖',
+                    detail: 'MA5 · MA20 · RSI14',
                     keyword: '特征工程',
                   },
                   {
                     step: '03',
-                    name: '模型训练',
-                    tag: 'train_model.py',
-                    desc: 'XGBoost 分类器学习历史价格模式，预测下一周期涨跌方向',
-                    detail: 'n=300, depth=6, lr=0.05',
-                    keyword: '模型训练',
+                    name: '数据库同步',
+                    tag: 'SQLite',
+                    desc: '将最新数据写入本地数据库，K 线图和交易台价格立即更新',
+                    detail: 'stock_bars · features',
+                    keyword: '数据库同步',
                   },
                   {
                     step: '04',
-                    name: '回测评估',
-                    tag: 'backtest.py',
-                    desc: '在历史数据上验证模型信号，计算胜率、最大回撤、夏普比率',
-                    detail: 'MA金叉 / MACD零轴',
-                    keyword: '回测评估',
+                    name: '完成',
+                    tag: 'K线图已更新',
+                    desc: '数据更新完成，K 线图将显示最新行情，交易台价格同步刷新',
+                    detail: '通常 3-10 秒完成',
+                    keyword: '完成',
                   },
                 ].map((item, i, arr) => {
                   const isDone = refreshModal.steps.some(s => s.includes(item.keyword) && s.includes('完成'));
@@ -2272,7 +2272,7 @@ function App() {
 
               <div className="mt-auto pt-4 border-t border-white/5">
                 <p className="text-[9px] text-white/20 leading-relaxed">
-                  训练完成后，K线图信号将自动更新。每只股票独立训练，互不影响。
+                  更新完成后，K线图将显示最新数据。每只股票独立更新，互不影响。
                 </p>
               </div>
             </div>
@@ -2284,10 +2284,10 @@ function App() {
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${refreshModal.done ? 'bg-secondary' : 'bg-up animate-pulse'}`} />
                   <div>
                     <h3 className="text-sm font-black text-white">
-                      {refreshModal.done ? 'AI 信号更新完成' : 'AI 信号更新中'}
+                      {refreshModal.done ? '行情数据更新完成' : '行情数据更新中'}
                     </h3>
                     <p className="text-[10px] text-white/30 mt-0.5">
-                      重新训练模型 · 更新 BUY/SELL/HOLD 信号
+                      从新浪财经拉取最新 K 线数据 · 自动计算技术指标
                     </p>
                   </div>
                 </div>
@@ -2342,7 +2342,7 @@ function App() {
                     </div>
                   </div>
                   <p className="text-[10px] text-white/25 mt-3">
-                    K线图和 AI 信号已更新，刷新页面可查看最新数据。
+                    K线图和价格已更新，刷新页面可查看最新数据。
                   </p>
                 </div>
               )}
