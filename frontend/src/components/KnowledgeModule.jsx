@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import TermTooltip from './TermTooltip.jsx';
+import Quiz from './Quiz.jsx';
+import { QUIZ_DATA } from '../lib/quizData.js';
 
 // ── 知识点数据库（100+ 条）──────────────────────────────────
 const KNOWLEDGE_DB = {
@@ -184,9 +186,13 @@ const KNOWLEDGE_DB = {
   },
 };
 
-const KnowledgeModule = ({ moduleKey = 'k_line' }) => {
+const KnowledgeModule = ({ moduleKey = 'k_line', onModuleComplete }) => {
   const [openSection, setOpenSection] = useState(null);
   const [search, setSearch] = useState('');
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizPassed, setQuizPassed] = useState(() => {
+    return !!localStorage.getItem(`yq_quiz_passed_${moduleKey}`);
+  });
   const mod = KNOWLEDGE_DB[moduleKey] || KNOWLEDGE_DB.k_line;
 
   const filtered = search.trim()
@@ -244,6 +250,42 @@ const KnowledgeModule = ({ moduleKey = 'k_line' }) => {
           )}
         </div>
       ))}
+
+      {/* 测验入口 */}
+      {QUIZ_DATA[moduleKey] && !showQuiz && (
+        <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${quizPassed ? 'bg-green-500/5 border-green-500/20' : 'bg-secondary/5 border-secondary/20'}`}>
+          <div>
+            <p className={`text-xs font-black ${quizPassed ? 'text-green-400' : 'text-secondary'}`}>
+              {quizPassed ? '✓ 本模块已通过测验' : '学完了？来测一测'}
+            </p>
+            <p className="text-[10px] text-white/30 mt-0.5">
+              {quizPassed ? '可以重新测验巩固' : '3 道选择题，答对 2 题即通过'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowQuiz(true)}
+            className={`px-4 py-2 text-xs font-black rounded-xl transition-all ${quizPassed ? 'bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20' : 'bg-secondary text-black hover:brightness-110'}`}
+          >
+            {quizPassed ? '再测一次' : '开始测验'}
+          </button>
+        </div>
+      )}
+
+      {/* 测验弹窗 */}
+      {showQuiz && (
+        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-4">
+          <Quiz
+            moduleKey={moduleKey}
+            quizData={QUIZ_DATA}
+            onPass={() => {
+              localStorage.setItem(`yq_quiz_passed_${moduleKey}`, '1');
+              setQuizPassed(true);
+              onModuleComplete?.(moduleKey);
+            }}
+            onClose={() => setShowQuiz(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -38,6 +38,7 @@ import MobileNav from './components/MobileNav';
 import ErrorBoundary from './components/ErrorBoundary';
 import NewUserChecklist from './components/NewUserChecklist';
 import TermTooltip from './components/TermTooltip';
+import WhatsNew from './components/WhatsNew';
 
 const stocks = { 
   '601899': '紫金矿业', '600519': '贵州茅台', '000001': '平安银行', '600036': '招商银行', 
@@ -2153,6 +2154,8 @@ function App() {
         <SimReadyToast portfolio={portfolio} user={user} />
         {/* 新用户欢迎引导 */}
         <NewUserWelcome user={user} onNavigate={setAppPage} />
+        {/* 版本更新推送 */}
+        <WhatsNew onNavigate={setAppPage} />
         {/* 移动端底部导航 */}
         <MobileNav currentPage={appPage} onNavigate={setAppPage} user={user} />
       </div>

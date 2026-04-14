@@ -114,7 +114,10 @@ const LearningCenter = ({ token, symbol = '601899', onBack }) => {
               </button>
             ))}
           </div>
-          <KnowledgeModule moduleKey={techModule} />
+          <KnowledgeModule
+            moduleKey={techModule}
+            onModuleComplete={(key) => markProgress(key, 'completed')}
+          />
 
           {/* K 线回放 */}
           <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
