@@ -764,7 +764,7 @@ const Dashboard = ({
       setAiError('');
       setAiReport(null);
       try {
-        const res = await fetch(`/api/ai-advisor?symbol=${currentSym}&period=${period}`);
+        const res = await fetch(`/api/ai/advisor?symbol=${currentSym}&period=${period}`);
         if (!res.ok) throw new Error('AI Advisor failed');
         const data = await res.json();
         if (!cancelled) setAiReport(data);
@@ -905,7 +905,7 @@ const Dashboard = ({
           </button>
           {price > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-xl">
-              <span className="text-[10px] font-black text-white/40">{stocks[currentSym] || currentSym}</span>
+              <span className="text-[10px] font-black text-white/40">{stockMap[currentSym] || currentSym}</span>
               <span className="text-[10px] font-black text-white">¥{price.toFixed(2)}</span>
             </div>
           )}
@@ -967,7 +967,7 @@ const Dashboard = ({
               period={period}
               onPeriodChange={onPeriodChange}
               portfolio={portfolio}
-              stocks={stocks}
+              stocks={stockMap}
             />
           )}
 
@@ -989,7 +989,7 @@ const Dashboard = ({
                  symbol={currentSym}
                  price={price}
                  cash={portfolio?.cash || 0}
-                 stockName={stocks[currentSym]}
+                 stockName={stockMap[currentSym]}
                  suggestedSignal={signalInfo?.signal}
                  availability={availability}
                  availabilityLoading={availabilityLoading}
@@ -1244,7 +1244,7 @@ const Dashboard = ({
                   </div>
                   <button className="section-action-btn" onClick={() => setShowDeepAnalysis(true)}>生成研报</button>
                </div>
-               <ChatTerminal symbol={currentSym} price={price} period={period} stockName={stocks[currentSym]} />
+               <ChatTerminal symbol={currentSym} price={price} period={period} stockName={stockMap[currentSym]} />
             </div>
           )}
 
@@ -1294,7 +1294,7 @@ const Dashboard = ({
             </div>
             <div className="flex flex-col gap-2">
               {[
-                { sym: currentSym, name: stocks[currentSym] || currentSym, signal: signalInfo.signal, conf: signalInfo.confidence },
+                { sym: currentSym, name: stockMap[currentSym] || currentSym, signal: signalInfo.signal, conf: signalInfo.confidence },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
                   <div>
@@ -1429,7 +1429,7 @@ const DeepAnalysis = ({ currentSym, period, availability, availabilityLoading, u
       setErr('');
       setReport(null);
       try {
-        const res = await fetch(`/api/ai-advisor?symbol=${currentSym}&period=${period}`);
+        const res = await fetch(`/api/ai/advisor?symbol=${currentSym}&period=${period}`);
         if (!res.ok) throw new Error('AI Advisor failed');
         const data = await res.json();
         if (!cancelled) {
@@ -1490,7 +1490,7 @@ const DeepAnalysis = ({ currentSym, period, availability, availabilityLoading, u
         <div>
           <h2 className="text-4xl font-black font-brand tracking-tighter text-white">投研分析中心</h2>
           <p className="text-text-muted text-base flex items-center gap-3 mt-2">
-            <span className="text-secondary font-black capitalize">{stocks[currentSym] || '加载中...'} ({currentSym})</span>
+            <span className="text-secondary font-black capitalize">{stockMap[currentSym] || '加载中...'} ({currentSym})</span>
             <span className="text-text-dim font-bold">• AI 深度增强报告</span>
           </p>
         </div>
@@ -1806,6 +1806,7 @@ function App() {
   const [_availabilityError, setAvailabilityError] = useState('');
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [appPage, setAppPage] = useState('dashboard'); // 'dashboard' | 'learning' | 'personal' | 'leaderboard' | 'market' | 'strategy'
+  const [stockMap, setStockMap] = useState(stocks);
   
   // 首次访问未登录用户显示落地页
   const [showLanding, setShowLanding] = useState(() => {
@@ -1870,6 +1871,21 @@ function App() {
         localStorage.removeItem('yq_user');
       }
     }
+  }, []);
+
+  // Fetch dynamic stock names map from backend
+  useEffect(() => {
+    fetch('/api/stocks/map')
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load stock map');
+        return r.json();
+      })
+      .then(data => {
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setStockMap(data);
+        }
+      })
+      .catch(err => console.warn("Could not fetch stock map, using defaults:", err));
   }, []);
 
   const onLogout = useCallback(() => {

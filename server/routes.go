@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+
 var (
 	rateLimitMap  sync.Map
 	rateLimitDur  = 10 * time.Second
@@ -26,10 +27,18 @@ func setupRouter() *gin.Engine {
 
 	// CORS configuration
 	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
+	// 读取允许的来源，生产环境应设置 ALLOWED_ORIGINS=https://yourdomain.com
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		// 开发默认：允许本地
+		config.AllowOrigins = []string{"http://localhost:5173", "http://localhost:8080", "http://127.0.0.1:8080"}
+	} else {
+		config.AllowOrigins = strings.Split(allowedOrigins, ",")
+	}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	r.Use(cors.New(config))
+
 
 	// API Routes
 	api := r.Group("/api")
@@ -44,6 +53,7 @@ func setupRouter() *gin.Engine {
 			// Essential public data
 			authLimit.GET("/indicators", handleIndicators)
 			authLimit.GET("/stocks", handleStocks)
+			authLimit.GET("/stocks/map", handleStockMap)
 			authLimit.GET("/availability", handleAvailability)
 			authLimit.GET("/news", handleNews)
 		}

@@ -20,8 +20,14 @@ portfolio.json
 
 # Local binaries (not source)
 youngquant_server
+youngquant_server_*
 server_bin
+server/server
 node_modules
+# Go build outputs
+*.exe
+*.out
+
 
 # IDE / OS
 .DS_Store

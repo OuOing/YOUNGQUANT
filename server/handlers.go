@@ -50,15 +50,6 @@ func validPeriod(p string) bool {
 	return false
 }
 
-// ---- Hot Stocks Cache ----
-
-type hotStocksCache struct {
-	stocks   []map[string]interface{}
-	cachedAt time.Time
-}
-
-var hotStocksCacheStore sync.Map // key: "hot_stocks", value: hotStocksCache
-
 // ---- Generic in-memory cache ----
 
 type memCacheEntry struct {
@@ -141,14 +132,11 @@ func handleHotStocks(c *gin.Context) {
 	const cacheKey = "hot_stocks"
 	const cacheTTL = 60 * time.Second
 
-	// Check cache
-	if v, ok := hotStocksCacheStore.Load(cacheKey); ok {
-		cached := v.(hotStocksCache)
-		if time.Since(cached.cachedAt) < cacheTTL {
-			c.JSON(http.StatusOK, gin.H{
-				"stocks":    cached.stocks,
-				"cached_at": cached.cachedAt.UTC().Format(time.RFC3339),
-			})
+	// 命中内存缓存（含 cachedAt 元信息）
+	if v, ok := memCache.Load(cacheKey); ok {
+		e := v.(memCacheEntry)
+		if time.Since(e.cachedAt) < cacheTTL {
+			c.Data(http.StatusOK, "application/json", e.data)
 			return
 		}
 	}
@@ -189,15 +177,18 @@ func handleHotStocks(c *gin.Context) {
 		})
 	}
 
-	// Update cache
-	now := time.Now()
-	hotStocksCacheStore.Store(cacheKey, hotStocksCache{stocks: stocks, cachedAt: now})
-
-	c.JSON(http.StatusOK, gin.H{
+	result := gin.H{
 		"stocks":    stocks,
-		"cached_at": "",
-	})
+		"cached_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.Marshal(result)
+	if err == nil {
+		cacheSet(cacheKey, data)
+	}
+
+	c.JSON(http.StatusOK, result)
 }
+
 
 // handleSectors handles GET /api/market/sectors (public)
 func handleSectors(c *gin.Context) {
@@ -275,8 +266,8 @@ func handleSectors(c *gin.Context) {
 // Portfolio Handlers
 func handlePortfolio(c *gin.Context) {
 	userID := c.GetInt(userContextKey)
-	portfolioMutex.Lock()
-	defer portfolioMutex.Unlock()
+	portfolioMutex.RLock()
+	defer portfolioMutex.RUnlock()
 
 	period := c.DefaultQuery("period", "15")
 	rangeParam := c.DefaultQuery("range", "all")
@@ -565,7 +556,11 @@ func handleTrade(c *gin.Context) {
 	}
 	p.History = append([]TradeLog{tradeLog}, p.History...)
 
-	tx, _ := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库交易启动失败: " + err.Error()})
+		return
+	}
 	defer tx.Rollback()
 
 	if hold.Shares > 0 {
@@ -811,6 +806,11 @@ func handleStocks(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, results)
 }
+
+func handleStockMap(c *gin.Context) {
+	c.JSON(http.StatusOK, stockNames)
+}
+
 
 func handleAvailability(c *gin.Context) {
 	symbol := c.DefaultQuery("symbol", "601899")
@@ -2101,7 +2101,44 @@ func handleLeaderboard(c *gin.Context) {
 	}
 	rows.Close()
 
-	// 计算每个用户的持仓市值
+	// 批量获取所有股票的最新收盘价 (SQLite & Postgres 通用窗口函数)
+	latestCloses := make(map[string]float64)
+	closesRows, err := db.Query(`
+		SELECT symbol, close FROM (
+			SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+			FROM stock_bars
+			WHERE period = 'daily'
+		) t WHERE rn = 1`)
+	if err == nil {
+		defer closesRows.Close()
+		for closesRows.Next() {
+			var sym string
+			var cl float64
+			if err := closesRows.Scan(&sym, &cl); err == nil {
+				latestCloses[sym] = cl
+			}
+		}
+	}
+
+	// 批量获取所有用户的持仓，并在内存中进行分组
+	userHoldingsMap := make(map[int]map[string]float64)
+	holdRows, err := db.Query("SELECT user_id, symbol, shares FROM holdings")
+	if err == nil {
+		defer holdRows.Close()
+		for holdRows.Next() {
+			var uid int
+			var sym string
+			var shares float64
+			if err := holdRows.Scan(&uid, &sym, &shares); err == nil {
+				if userHoldingsMap[uid] == nil {
+					userHoldingsMap[uid] = make(map[string]float64)
+				}
+				userHoldingsMap[uid][sym] = shares
+			}
+		}
+	}
+
+	// 计算每个用户的总资产（现金 + 持仓市值）
 	type rankedEntry struct {
 		name       string
 		isPublic   int
@@ -2113,17 +2150,10 @@ func handleLeaderboard(c *gin.Context) {
 	var ranked []rankedEntry
 	for _, ua := range assets {
 		total := ua.cash
-		holdRows, err := db.Query("SELECT symbol, shares FROM holdings WHERE user_id = ?", ua.userID)
-		if err == nil {
-			for holdRows.Next() {
-				var sym string
-				var shares float64
-				holdRows.Scan(&sym, &shares)
-				var lastClose float64
-				db.QueryRow("SELECT close FROM stock_bars WHERE symbol = ? AND period = 'daily' ORDER BY date DESC LIMIT 1", sym).Scan(&lastClose)
-				total += shares * lastClose
+		if holdings, ok := userHoldingsMap[ua.userID]; ok {
+			for sym, shares := range holdings {
+				total += shares * latestCloses[sym]
 			}
-			holdRows.Close()
 		}
 		ranked = append(ranked, rankedEntry{
 			name: ua.name, isPublic: ua.isPublic,
@@ -2191,18 +2221,40 @@ func handleLeaderboardMe(c *gin.Context) {
 		return
 	}
 
-	// Count users with higher return rate to determine rank
+	// 计算真实总资产（现金 + 持仓市值）
+	totalAssets := cash
+	holdRows, err := db.Query("SELECT symbol, shares FROM holdings WHERE user_id = ?", userID)
+	if err == nil {
+		defer holdRows.Close()
+		for holdRows.Next() {
+			var sym string
+			var shares float64
+			holdRows.Scan(&sym, &shares)
+			var lastClose float64
+			db.QueryRow("SELECT close FROM stock_bars WHERE symbol = ? AND period = 'daily' ORDER BY date DESC LIMIT 1", sym).Scan(&lastClose)
+			totalAssets += shares * lastClose
+		}
+	}
+
+	// 计算收益率
+	returnPct := 0.0
+	if initCash > 0 {
+		returnPct = (totalAssets - initCash) / initCash * 100
+	}
+
+	// 统计收益率高于本用户的人数（以现金收益率为近似比较，因为其他用户持仓无法高效聚合）
 	var rank int
 	db.QueryRow(`SELECT COUNT(*) + 1 FROM portfolios 
 		WHERE (cash - COALESCE(initial_cash, 100000.0)) / COALESCE(initial_cash, 100000.0) 
-		    > (? - COALESCE(initial_cash, 100000.0)) / COALESCE(initial_cash, 100000.0)`, cash).Scan(&rank)
+		    > ?`, returnPct/100).Scan(&rank)
 
-	returnPct := (cash - initCash) / initCash * 100
 	c.JSON(http.StatusOK, gin.H{
 		"rank":         rank,
 		"return_pct":   returnPct,
+		"total_assets": totalAssets,
 		"initial_cash": initCash,
 		"mdd":          mdd,
 		"win_rate":     winRate,
 	})
 }
+

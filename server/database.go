@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
@@ -21,47 +20,6 @@ func dbDriver() string {
 	return "sqlite"
 }
 
-// placeholder returns the correct SQL placeholder for the current driver.
-// SQLite uses ?, PostgreSQL uses $1, $2, ...
-func ph(n int) string {
-	if dbDriver() == "postgres" {
-		return "$" + strings.TrimSpace(strings.Repeat("?", n)) // handled below
-	}
-	return "?"
-}
-
-// placeholders returns n placeholders for the current driver.
-// e.g. placeholders(3) → "?,?,?" for SQLite, "$1,$2,$3" for Postgres
-func placeholders(n int) string {
-	if dbDriver() == "sqlite" {
-		parts := make([]string, n)
-		for i := range parts {
-			parts[i] = "?"
-		}
-		return strings.Join(parts, ",")
-	}
-	// PostgreSQL
-	parts := make([]string, n)
-	for i := range parts {
-		parts[i] = "$" + string(rune('0'+i+1))
-		if i+1 >= 10 {
-			parts[i] = "$" + strings.TrimSpace(strings.Repeat("0", 0))
-		}
-	}
-	// Use a simpler approach for postgres placeholders
-	result := make([]string, n)
-	for i := range result {
-		result[i] = "$" + itoa(i+1)
-	}
-	return strings.Join(result, ",")
-}
-
-func itoa(n int) string {
-	if n < 10 {
-		return string(rune('0' + n))
-	}
-	return strings.TrimSpace(strings.Repeat("0", 0)) + itoa(n/10) + itoa(n%10)
-}
 
 func initDB() {
 	driver := dbDriver()

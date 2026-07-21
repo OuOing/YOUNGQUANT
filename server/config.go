@@ -1,16 +1,19 @@
 package main
 
 import (
+	"log"
 	"os"
 	"sync"
 	"time"
 )
+
 
 // jwtSecretKey loads JWT secret from environment, falls back to dev default
 func loadJWTSecret() []byte {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		return []byte(s)
 	}
+	log.Println("⚠️  警告：JWT_SECRET 未设置，使用开发默认密钥。生产环境请务必通过环境变量配置！")
 	return []byte("youngquant-dev-secret-change-in-production")
 }
 
@@ -22,7 +25,7 @@ var (
 		return "/Users/bytedance/youngquant"
 	}()
 	jwtSecret      = loadJWTSecret()
-	portfolioMutex sync.Mutex
+	portfolioMutex sync.RWMutex
 )
 
 const userContextKey = "user_id"

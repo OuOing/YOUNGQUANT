@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+var httpClient = &http.Client{
+	Timeout: 15 * time.Second,
+}
+
 // sinaPrefix returns the exchange prefix for a symbol.
 // sh = Shanghai, sz = Shenzhen
 func sinaPrefix(symbol string) string {
@@ -40,7 +44,6 @@ func fetchSinaQuote(symbol string) *SinaQuote {
 	code := sinaPrefix(symbol)
 	url := fmt.Sprintf("https://hq.sinajs.cn/list=%s", code)
 
-	client := &http.Client{Timeout: 8 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil
@@ -49,7 +52,7 @@ func fetchSinaQuote(symbol string) *SinaQuote {
 	req.Header.Set("Referer", "https://finance.sina.com.cn")
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil
 	}
@@ -108,7 +111,6 @@ func fetchSinaHistory(symbol string, count int) []map[string]interface{} {
 	code := sinaPrefix(symbol)
 	url := fmt.Sprintf("https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=%s&scale=240&ma=no&datalen=%d", code, count)
 
-	client := &http.Client{Timeout: 15 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil
@@ -116,7 +118,7 @@ func fetchSinaHistory(symbol string, count int) []map[string]interface{} {
 	req.Header.Set("Referer", "https://finance.sina.com.cn")
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil
 	}
@@ -247,7 +249,6 @@ func fetchSinaNews() []map[string]string {
 	// 新浪财经滚动新闻 API
 	url := "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&k=&num=20&page=1&r=0.5"
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil
@@ -255,7 +256,7 @@ func fetchSinaNews() []map[string]string {
 	req.Header.Set("Referer", "https://finance.sina.com.cn")
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil
 	}

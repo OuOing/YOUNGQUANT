@@ -59,22 +59,6 @@ func loadPortfolio(userID int) (*Portfolio, error) {
 	return p, nil
 }
 
-func savePortfolioToDB(userID int, p *Portfolio) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec("UPDATE portfolios SET cash = ?, mdd = ?, win_rate = ?, sharpe = ? WHERE user_id = ?",
-		p.Cash, p.Metrics.MDD, p.Metrics.WinRate, p.Metrics.Sharpe, userID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
 func featuresFilename(symbol, period string) string {
 	if period == "daily" {
 		return filepath.Join("data", fmt.Sprintf("features_%s_v3.csv", symbol))

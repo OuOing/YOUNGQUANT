@@ -58,7 +58,12 @@ func importStockBars(filename string) {
 	// stock_zh_a_hist: 日期,股票代码,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
 	// min_em: 日期,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率
 
-	tx, _ := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Failed to begin transaction for %s: %v", filename, err)
+		return
+	}
+	defer tx.Rollback()
 	for {
 		rec, err := reader.Read()
 		if err == io.EOF {
@@ -105,7 +110,12 @@ func importFeatures(filename string) {
 		colMap[h] = i
 	}
 
-	tx, _ := db.Begin()
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf("Failed to begin transaction for %s: %v", filename, err)
+		return
+	}
+	defer tx.Rollback()
 	for {
 		rec, err := reader.Read()
 		if err == io.EOF {

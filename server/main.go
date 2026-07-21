@@ -174,7 +174,6 @@ func main() {
 
 	loadEnv()
 	initDB()
-	migrateAlterTables()
 
 	if *migrateFlag {
 		migrateCSVs()

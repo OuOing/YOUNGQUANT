@@ -189,65 +189,90 @@ func matchPendingOrders() {
 			continue
 		}
 
-		// 执行成交
-		portfolioMutex.Lock()
-		p, err := loadPortfolio(o.userID)
+		// Use helper anonymous function to manage locks and transactions safely
+		err = func() error {
+			portfolioMutex.Lock()
+			defer portfolioMutex.Unlock()
+
+			p, err := loadPortfolio(o.userID)
+			if err != nil {
+				return err
+			}
+
+			fee := math.Max(fillPrice*o.qty*commissionRate, commissionMinFee)
+			amount := fillPrice * o.qty
+			hold := p.Holdings[o.symbol]
+			now := time.Now().Format("2006-01-02 15:04:05")
+			today := time.Now().Format("2006-01-02")
+
+			if o.action == "buy" {
+				// 资金已在挂单时冻结，直接更新持仓
+				totalCost := hold.Shares*hold.Cost + amount
+				hold.Shares += o.qty
+				hold.Cost = totalCost / hold.Shares
+				hold.LastDate = today
+				p.Holdings[o.symbol] = hold
+			} else {
+				// 卖单：检查持仓
+				if hold.Shares < o.qty {
+					// 持仓不足，撤单
+					_, _ = db.Exec(`UPDATE pending_orders SET status='cancelled' WHERE id=?`, o.id)
+					return fmt.Errorf("持仓不足 (拥有 %.2f, 需求 %.2f)，订单已撤销", hold.Shares, o.qty)
+				}
+				hold.Shares -= o.qty
+				hold.Available -= o.qty
+				if hold.Available < 0 {
+					hold.Available = 0
+				}
+				p.Cash += amount - fee
+				if hold.Shares <= 0 {
+					delete(p.Holdings, o.symbol)
+				} else {
+					p.Holdings[o.symbol] = hold
+				}
+			}
+
+			// 写入成交记录
+			tx, err := db.Begin()
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+
+			_, err = tx.Exec(`UPDATE pending_orders SET status='filled', filled_at=?, filled_price=? WHERE id=?`,
+				now, fillPrice, o.id)
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.Exec(`INSERT INTO trades (user_id, date, symbol, name, action, price, shares, fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				o.userID, now, o.symbol, stockNames[o.symbol], o.action, fillPrice, o.qty, fee)
+			if err != nil {
+				return err
+			}
+
+			if hold.Shares > 0 {
+				_, err = tx.Exec(`INSERT OR REPLACE INTO holdings (user_id, symbol, shares, cost, available, last_date) VALUES (?, ?, ?, ?, ?, ?)`,
+					o.userID, o.symbol, hold.Shares, hold.Cost, hold.Available, hold.LastDate)
+			} else {
+				_, err = tx.Exec(`DELETE FROM holdings WHERE user_id=? AND symbol=?`, o.userID, o.symbol)
+			}
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.Exec(`UPDATE portfolios SET cash=? WHERE user_id=?`, p.Cash, o.userID)
+			if err != nil {
+				return err
+			}
+
+			return tx.Commit()
+		}()
+
 		if err != nil {
-			portfolioMutex.Unlock()
+			log.Printf("[撮合] 订单 #%d 撮合未执行: %v", o.id, err)
 			continue
 		}
-
-		fee := math.Max(fillPrice*o.qty*commissionRate, commissionMinFee)
-		amount := fillPrice * o.qty
-		hold := p.Holdings[o.symbol]
-		now := time.Now().Format("2006-01-02 15:04:05")
-		today := time.Now().Format("2006-01-02")
-
-		if o.action == "buy" {
-			// 资金已在挂单时冻结，直接更新持仓
-			totalCost := hold.Shares*hold.Cost + amount
-			hold.Shares += o.qty
-			hold.Cost = totalCost / hold.Shares
-			hold.LastDate = today
-			p.Holdings[o.symbol] = hold
-		} else {
-			// 卖单：检查持仓
-			if hold.Shares < o.qty {
-				// 持仓不足，撤单
-				db.Exec(`UPDATE pending_orders SET status='cancelled' WHERE id=?`, o.id)
-				portfolioMutex.Unlock()
-				log.Printf("[撮合] 卖单 #%d 持仓不足，已撤销", o.id)
-				continue
-			}
-			hold.Shares -= o.qty
-			hold.Available -= o.qty
-			if hold.Available < 0 {
-				hold.Available = 0
-			}
-			p.Cash += amount - fee
-			if hold.Shares <= 0 {
-				delete(p.Holdings, o.symbol)
-			} else {
-				p.Holdings[o.symbol] = hold
-			}
-		}
-
-		// 写入成交记录
-		tx, _ := db.Begin()
-		tx.Exec(`UPDATE pending_orders SET status='filled', filled_at=?, filled_price=? WHERE id=?`,
-			now, fillPrice, o.id)
-		tx.Exec(`INSERT INTO trades (user_id, date, symbol, name, action, price, shares, fee) VALUES (?,?,?,?,?,?,?,?)`,
-			o.userID, now, o.symbol, stockNames[o.symbol], o.action, fillPrice, o.qty, fee)
-		if hold.Shares > 0 {
-			tx.Exec(`INSERT OR REPLACE INTO holdings (user_id, symbol, shares, cost, available, last_date) VALUES (?,?,?,?,?,?)`,
-				o.userID, o.symbol, hold.Shares, hold.Cost, hold.Available, hold.LastDate)
-		} else {
-			tx.Exec(`DELETE FROM holdings WHERE user_id=? AND symbol=?`, o.userID, o.symbol)
-		}
-		tx.Exec(`UPDATE portfolios SET cash=? WHERE user_id=?`, p.Cash, o.userID)
-		tx.Commit()
-
-		portfolioMutex.Unlock()
 
 		// 推送成交通知给用户
 		actionCN := map[string]string{"buy": "买入", "sell": "卖出"}[o.action]
